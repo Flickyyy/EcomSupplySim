@@ -313,6 +313,7 @@
     <li><a href="#s4">4. Параметры модели</a>
       <ol type="a" style="margin-top:4px">
         <li><a href="#s4-params">4.1 Входные параметры</a></li>
+        <li><a href="#s4-priority">4.1.1 Приоритетные классы SLA</a></li>
         <li><a href="#s4-run">4.2 Параметры прогона</a></li>
         <li><a href="#s4-assumptions">4.3 Условия и предположения</a></li>
       </ol>
@@ -338,7 +339,7 @@
   </div>
 
   <h3 id="s1-intro">1.1 Введение</h3>
-  <p style="margin-bottom:16px">Модель представляет e-commerce логистику как систему из <strong>6 взаимодействующих функциональных блоков</strong>. Каждый блок принимает входной поток, преобразует его по математическому закону и передаёт управление следующему блоку через сигнал или буферизованную очередь. Система нелинейна: помимо прямого потока заказов существует <em>обратный поток возвратов</em>, 11 возможных статусов заказа и случайные прерывания (поломки курьеров, дефекты при сборке, перегрузка склада).</p>
+  <p style="margin-bottom:16px">Модель представляет e-commerce логистику как систему из <strong>6 взаимодействующих функциональных блоков</strong>. Каждый блок принимает входной поток, преобразует его по математическому закону и передаёт управление следующему блоку через сигнал или буферизованную очередь. Система нелинейна: помимо прямого потока заказов существует <em>обратный поток возвратов</em>, 13 возможных статусов заказа и случайные прерывания (поломки курьеров, дефекты при сборке, перегрузка склада).</p>
 
   <table>
     <thead>
@@ -366,7 +367,7 @@
       </tr>
       <tr>
         <td><strong>Б4</strong><br><span style="font-size:.8rem;color:var(--text-muted)">Courier Delivery</span></td>
-        <td><span class="formula">T<sub>travel</sub> = dist/v × K<sub>tr</sub></span>,&nbsp; K<sub>tr</sub>&thinsp;∼&thinsp;LN(0,&thinsp;0.35)<br><span style="font-size:.8rem;color:var(--text-muted)">Поломка: Pois(0.1/сут), T<sub>rem</sub>&thinsp;∼&thinsp;Exp(30 мин)</span></td>
+        <td><span class="formula">T<sub>travel</sub> = dist/v × K<sub>tr</sub></span>,&nbsp; K<sub>tr</sub>&thinsp;∼&thinsp;LN(0,&thinsp;0.35)<br><span style="font-size:.8rem;color:var(--text-muted)">Поломка: Pois(0.1/сут), T<sub>rem</sub>&thinsp;∼&thinsp;Exp(30 мин). Express-заказы поступают из <code>priorityStagingChan</code> с преемпцией через <code>select</code></span></td>
         <td>По прибытии → <em>arrived</em> → Б5 Customer</td>
       </tr>
       <tr>
@@ -383,7 +384,7 @@
   </table>
 
   <div class="callout" style="margin:16px 0 32px">
-    <strong>Межблочные сигналы в реализации (Go):</strong> Сигналы передаются через буферизованные каналы <code>chan Order</code>. Очередь склада — канал с ёмкостью <code>Q_max = 50</code>, естественно блокируя поступление при переполнении. Каждый курьер — горутина-воркер, ожидающая заказ из общего staging-канала. Возвраты маршрутизируются через <code>returnQueue</code> по результату Бернулли. Хаотичные события (поломки, пробки) генерируются через <code>select { case &lt;-time.After(τ): ... }</code> внутри горутины-курьера — механизм прерывания доставки без блокировки остальных горутин.
+    <strong>Межблочные сигналы в реализации (Go):</strong> Сигналы передаются через буферизованные каналы <code>chan Order</code>. Очередь склада — канал с ёмкостью <code>Q_max = 50</code>, естественно блокируя поступление при переполнении. Каждый курьер — горутина-воркер, ожидающая заказ из соответствующего staging-канала (<code>stagingChan</code> или <code>priorityStagingChan</code>). Для заказов с приоритетом <strong>express</strong> и <strong>same-day</strong> используется отдельный <code>priorityChan</code>, читаемый <em>первым</em> во всех <code>select</code>-блоках диспетчера, сборки и staging — это обеспечивает мягкую преемпцию очереди без блокировки стандартных заказов. Возвраты маршрутизируются через <code>returnQueue</code> по распределению причин (Refused 40%, LateDeliv 30%, Defective 20%, WrongItem 10%). Хаотичные события (поломки, пробки) генерируются через <code>select { case &lt;-time.After(τ): ... }</code> внутри горутины-курьера — механизм прерывания доставки без блокировки остальных горутин.
   </div>
 
   <h3 id="s1-bounds">1.2 Описание системы</h3>
@@ -666,7 +667,7 @@
   </div>
 
   <!-- ── ORDER STATUS TABLE ── -->
-  <h3 id="s1-statuses">Полная таблица статусов заказа</h3>
+  <h3 id="s1-statuses">Полная таблица статусов заказа (13)</h3>
   <table>
     <thead><tr><th style="width:22%">Статус</th><th>Когда наступает</th><th>Блок-владелец</th><th style="width:10%">Терминальный</th></tr></thead>
     <tbody>
@@ -737,6 +738,12 @@
         <td><span class="terminal-yes">✓ да</span></td>
       </tr>
       <tr>
+        <td><span class="status-dot" style="background:#f87171"></span><code>DISPOSED</code></td>
+        <td>Товар признан критически бракованным после инспекции (разбит / биоопасен / недокомплект &gt;1 позиции) — утилизирован без возврата в инвентарь</td>
+        <td>Б6 Sorting Hub</td>
+        <td><span class="terminal-yes">✓ да</span></td>
+      </tr>
+      <tr>
         <td><span class="status-dot" style="background:#f87171"></span><code>CANCELLED</code></td>
         <td>Нет товара / исчерпаны попытки доставки / критичный брак</td>
         <td>Б2 / Б5 / Б6</td>
@@ -748,249 +755,294 @@
   <!-- ── BLOCK SCHEME SVG ── -->
   <h3 id="s1-blockscheme">Блок-схема системы</h3>
   <div class="diagram-wrap">
-    <svg viewBox="0 0 820 540" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI',system-ui,sans-serif">
+    <svg viewBox="0 0 900 580" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI',system-ui,sans-serif">
       <defs>
-        <marker id="ah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="#5b8af7"/>
-        </marker>
-        <marker id="ah-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="#3ecf8e"/>
-        </marker>
-        <marker id="ah-red" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="#f87171"/>
-        </marker>
-        <marker id="ah-yellow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="#fbbf24"/>
-        </marker>
+        <marker id="ah"    markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#5b8af7"/></marker>
+        <marker id="ah-g"  markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#3ecf8e"/></marker>
+        <marker id="ah-r"  markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#f87171"/></marker>
+        <marker id="ah-y"  markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#fbbf24"/></marker>
+        <marker id="ah-p"  markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#c084fc"/></marker>
       </defs>
-
-      <!-- bg -->
-      <rect width="820" height="540" fill="#1a1d27" rx="10"/>
-
-      <!-- ── NODE: Customer ── -->
-      <ellipse cx="100" cy="80" rx="72" ry="30" fill="#151824" stroke="#5b8af7" stroke-width="1.5"/>
-      <text x="100" y="75" text-anchor="middle" fill="#7ecaff" font-size="12" font-weight="600">👤 Клиент</text>
-      <text x="100" y="92" text-anchor="middle" fill="#7a8099" font-size="10">заявка</text>
-
-      <!-- ── NODE: OrderGenerator ── -->
-      <rect x="196" y="52" width="150" height="56" rx="8" fill="#151824" stroke="#5b8af7" stroke-width="1.5"/>
-      <text x="271" y="75" text-anchor="middle" fill="#7ecaff" font-size="12" font-weight="600">Order Generator</text>
-      <text x="271" y="91" text-anchor="middle" fill="#7a8099" font-size="10">Пуассон · λ(t)</text>
-      <text x="271" y="103" text-anchor="middle" fill="#7a8099" font-size="10">τ ~ Exp(λ)</text>
-
-      <!-- Customer → Generator -->
-      <line x1="172" y1="80" x2="194" y2="80" stroke="#5b8af7" stroke-width="1.5" marker-end="url(#ah)"/>
-
-      <!-- ── NODE: Dispatcher ── -->
-      <polygon points="430,52 530,80 430,108 330,80" fill="#151824" stroke="#fbbf24" stroke-width="1.5"/>
-      <text x="430" y="76" text-anchor="middle" fill="#fbbf24" font-size="12" font-weight="600">Dispatcher</text>
-      <text x="430" y="92" text-anchor="middle" fill="#7a8099" font-size="10">score = w₁/dist + w₂·avail</text>
-
-      <!-- Generator → Dispatcher -->
-      <line x1="346" y1="80" x2="328" y2="80" stroke="#5b8af7" stroke-width="1.5" marker-end="url(#ah)"/>
-
-      <!-- ── STORES ── -->
-      <!-- Store 1 -->
-      <rect x="560" y="22" width="140" height="52" rx="8" fill="#151824" stroke="#3ecf8e" stroke-width="1.5"/>
-      <text x="630" y="44" text-anchor="middle" fill="#3ecf8e" font-size="12" font-weight="600">🏪 Store 1</text>
-      <text x="630" y="60" text-anchor="middle" fill="#7a8099" font-size="10">Сборка · N(15, 4) мин</text>
-      <!-- Store 2 -->
-      <rect x="560" y="92" width="140" height="52" rx="8" fill="#151824" stroke="#3ecf8e" stroke-width="1.5"/>
-      <text x="630" y="114" text-anchor="middle" fill="#3ecf8e" font-size="12" font-weight="600">🏪 Store 2</text>
-      <text x="630" y="130" text-anchor="middle" fill="#7a8099" font-size="10">Очередь ≤ Q_max</text>
-      <!-- Store N -->
-      <rect x="560" y="162" width="140" height="52" rx="8" fill="#151824" stroke="#3ecf8e" stroke-width="1.5" stroke-dasharray="5,3"/>
-      <text x="630" y="184" text-anchor="middle" fill="#3ecf8e" font-size="12" font-weight="600">🏪 Store N</text>
-      <text x="630" y="200" text-anchor="middle" fill="#7a8099" font-size="10">...</text>
-
-      <!-- Dispatcher → Stores -->
-      <line x1="530" y1="68" x2="558" y2="48" stroke="#3ecf8e" stroke-width="1.4" marker-end="url(#ah-green)"/>
-      <line x1="530" y1="80" x2="558" y2="118" stroke="#3ecf8e" stroke-width="1.4" marker-end="url(#ah-green)"/>
-      <line x1="530" y1="88" x2="558" y2="178" stroke="#3ecf8e" stroke-width="1.4" stroke-dasharray="5,3" marker-end="url(#ah-green)"/>
-      <text x="538" y="58" fill="#7a8099" font-size="9">назначить</text>
-
-      <!-- ── COURIER POOL ── -->
-      <rect x="196" y="255" width="160" height="62" rx="8" fill="#151824" stroke="#7ecaff" stroke-width="1.5"/>
-      <text x="276" y="278" text-anchor="middle" fill="#7ecaff" font-size="12" font-weight="600">🚴 Courier Pool</text>
-      <text x="276" y="294" text-anchor="middle" fill="#7a8099" font-size="10">M горутин-воркеров</text>
-      <text x="276" y="308" text-anchor="middle" fill="#7a8099" font-size="10">LN(0, 0.35) · поломки</text>
-
-      <!-- Stores → Courier (staging) -->
-      <path d="M 630 74 Q 620 240 360 270" fill="none" stroke="#7ecaff" stroke-width="1.4" marker-end="url(#ah)"/>
-      <path d="M 630 144 Q 610 240 360 278" fill="none" stroke="#7ecaff" stroke-width="1.4" marker-end="url(#ah)"/>
-      <text x="555" y="230" fill="#7a8099" font-size="9" text-anchor="middle">собран → staging</text>
-
-      <!-- ── CUSTOMER DELIVERY ── -->
-      <polygon points="276,380 336,408 276,436 216,408" fill="#151824" stroke="#fbbf24" stroke-width="1.5"/>
-      <text x="276" y="404" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="600">Клиент</text>
-      <text x="276" y="420" text-anchor="middle" fill="#7a8099" font-size="10">принять?</text>
-
-      <!-- Courier → Customer -->
-      <line x1="276" y1="317" x2="276" y2="378" stroke="#7ecaff" stroke-width="1.5" marker-end="url(#ah)"/>
-      <text x="295" y="355" fill="#7a8099" font-size="9">T_travel</text>
-
-      <!-- ── DELIVERED ── -->
-      <ellipse cx="420" cy="408" rx="72" ry="26" fill="#0f2820" stroke="#3ecf8e" stroke-width="1.5"/>
-      <text x="420" y="404" text-anchor="middle" fill="#3ecf8e" font-size="12" font-weight="600">✓ DELIVERED</text>
-      <text x="420" y="420" text-anchor="middle" fill="#3ecf8e" font-size="10">p = 1 − p_ret</text>
-
-      <!-- Customer → Delivered -->
-      <line x1="336" y1="408" x2="346" y2="408" stroke="#3ecf8e" stroke-width="1.5" marker-end="url(#ah-green)"/>
-
-      <!-- ── RETURN INITIATED ── -->
-      <rect x="186" y="475" width="180" height="44" rx="8" fill="#2a1a0f" stroke="#fbbf24" stroke-width="1.5"/>
-      <text x="276" y="494" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="600">↩ Обратная логистика</text>
-      <text x="276" y="510" text-anchor="middle" fill="#7a8099" font-size="10">RETURN_INITIATED</text>
-
-      <!-- Customer → Return -->
-      <line x1="276" y1="436" x2="276" y2="473" stroke="#f87171" stroke-width="1.5" marker-end="url(#ah-red)"/>
-      <text x="295" y="458" fill="#f87171" font-size="9">p_ret</text>
-
-      <!-- ── ROUTE DECISION ── -->
-      <polygon points="560,475 630,497 560,519 490,497" fill="#151824" stroke="#c084fc" stroke-width="1.5"/>
-      <text x="560" y="494" text-anchor="middle" fill="#c084fc" font-size="10" font-weight="600">Маршрут</text>
-      <text x="560" y="509" text-anchor="middle" fill="#7a8099" font-size="9">возврата</text>
-
-      <!-- Return → Route decision -->
-      <line x1="366" y1="497" x2="488" y2="497" stroke="#fbbf24" stroke-width="1.4" marker-end="url(#ah-yellow)"/>
-
-      <!-- ── SORTING HUB ── -->
-      <rect x="650" y="462" width="148" height="50" rx="8" fill="#151824" stroke="#7ecaff" stroke-width="1.5"/>
-      <text x="724" y="482" text-anchor="middle" fill="#7ecaff" font-size="11" font-weight="600">🏭 Sorting Hub</text>
-      <text x="724" y="498" text-anchor="middle" fill="#7a8099" font-size="10">Инспекция · Exp(10мин)</text>
-      <text x="724" y="510" text-anchor="middle" fill="#7a8099" font-size="9">P = 0.4</text>
-
-      <!-- Route → Hub -->
-      <line x1="630" y1="497" x2="648" y2="487" stroke="#7ecaff" stroke-width="1.4" marker-end="url(#ah)"/>
-
-      <!-- Route → Store (back) -->
-      <path d="M 560 475 Q 560 400 630 380 Q 720 360 760 280 Q 780 240 720 200 Q 700 190 700 188" fill="none" stroke="#3ecf8e" stroke-width="1.3" stroke-dasharray="5,3" marker-end="url(#ah-green)"/>
-      <text x="690" y="330" fill="#7a8099" font-size="9">P = 0.6 → Store</text>
+      <rect width="900" height="580" fill="#1a1d27" rx="10"/>
 
       <!-- LEGEND -->
-      <rect x="14" y="460" width="160" height="64" rx="6" fill="#151824" stroke="#2e3450" stroke-width="1"/>
-      <text x="24" y="478" fill="#7a8099" font-size="10" font-weight="600">ЛЕГЕНДА</text>
-      <line x1="24" y1="490" x2="44" y2="490" stroke="#5b8af7" stroke-width="1.5" marker-end="url(#ah)"/>
-      <text x="50" y="494" fill="#7a8099" font-size="9">прямой поток</text>
-      <line x1="24" y1="507" x2="44" y2="507" stroke="#f87171" stroke-width="1.5" marker-end="url(#ah-red)"/>
-      <text x="50" y="511" fill="#7a8099" font-size="9">инициация возврата</text>
-      <line x1="24" y1="522" x2="44" y2="522" stroke="#3ecf8e" stroke-width="1.3" stroke-dasharray="5,3" marker-end="url(#ah-green)"/>
-      <text x="50" y="526" fill="#7a8099" font-size="9">обратный поток</text>
+      <rect x="12" y="10" width="192" height="94" rx="6" fill="#151824" stroke="#2e3450" stroke-width="1"/>
+      <text x="22" y="28" fill="#7a8099" font-size="10" font-weight="600">ЛЕГЕНДА</text>
+      <line x1="22" y1="40" x2="42" y2="40" stroke="#5b8af7"  stroke-width="1.5" marker-end="url(#ah)"/>
+      <text x="48" y="44" fill="#7a8099" font-size="9">прямой поток</text>
+      <line x1="22" y1="56" x2="42" y2="56" stroke="#f87171"  stroke-width="1.4" marker-end="url(#ah-r)"/>
+      <text x="48" y="60" fill="#7a8099" font-size="9">отмена / ошибка</text>
+      <line x1="22" y1="72" x2="42" y2="72" stroke="#3ecf8e"  stroke-width="1.3" stroke-dasharray="5,3" marker-end="url(#ah-g)"/>
+      <text x="48" y="76" fill="#7a8099" font-size="9">обратный поток</text>
+      <line x1="22" y1="88" x2="42" y2="88" stroke="#fbbf24"  stroke-width="1.3" stroke-dasharray="3,2" marker-end="url(#ah-y)"/>
+      <text x="48" y="92" fill="#7a8099" font-size="9">приоритетный поток</text>
+
+      <!-- Customer -->
+      <ellipse cx="106" cy="96" rx="78" ry="30" fill="#151824" stroke="#5b8af7" stroke-width="1.5"/>
+      <text x="106" y="91" text-anchor="middle" fill="#7ecaff" font-size="12" font-weight="600">👤 Клиент</text>
+      <text x="106" y="107" text-anchor="middle" fill="#7a8099" font-size="9">standard / express / same-day</text>
+
+      <!-- OrderGenerator -->
+      <rect x="222" y="68" width="155" height="56" rx="8" fill="#151824" stroke="#5b8af7" stroke-width="1.5"/>
+      <text x="299" y="89" text-anchor="middle" fill="#7ecaff" font-size="12" font-weight="600">Order Generator</text>
+      <text x="299" y="104" text-anchor="middle" fill="#7a8099" font-size="9">τ ~ Exp(λ(t))</text>
+      <text x="299" y="117" text-anchor="middle" fill="#7a8099" font-size="9">Order{ID, SKU[], addr, priority, SLA}</text>
+      <line x1="184" y1="96" x2="220" y2="96" stroke="#5b8af7" stroke-width="1.5" marker-end="url(#ah)"/>
+
+      <!-- Dispatcher diamond -->
+      <polygon points="468,68 575,96 468,124 361,96" fill="#151824" stroke="#fbbf24" stroke-width="1.5"/>
+      <text x="468" y="92" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="600">Dispatcher</text>
+      <text x="468" y="106" text-anchor="middle" fill="#7a8099" font-size="9">score = w₁/dist + w₂·avail</text>
+      <line x1="377" y1="96" x2="360" y2="96" stroke="#5b8af7" stroke-width="1.5" marker-end="url(#ah)"/>
+
+      <!-- express priority label on generator→dispatcher -->
+      <text x="310" y="88" fill="#fbbf24" font-size="8" opacity="0.85">express→priorityChan↑</text>
+
+      <!-- CANCELLED: no-stock -->
+      <rect x="575" y="18" width="130" height="34" rx="7" fill="#2a0f0f" stroke="#f87171" stroke-width="1.3"/>
+      <text x="640" y="33" text-anchor="middle" fill="#f87171" font-size="9" font-weight="600">✗ CANCELLED</text>
+      <text x="640" y="46" text-anchor="middle" fill="#7a8099" font-size="8">нет товара / SLA недостижим</text>
+      <line x1="522" y1="80" x2="588" y2="36" stroke="#f87171" stroke-width="1.2" marker-end="url(#ah-r)"/>
+      <text x="554" y="56" fill="#f87171" font-size="8">нет товара</text>
+
+      <!-- Store 1 -->
+      <rect x="630" y="56" width="148" height="52" rx="8" fill="#151824" stroke="#3ecf8e" stroke-width="1.5"/>
+      <text x="704" y="75" text-anchor="middle" fill="#3ecf8e" font-size="11" font-weight="600">🏪 Store 1</text>
+      <text x="704" y="89" text-anchor="middle" fill="#7a8099" font-size="8">K слотов · N(15,4)·w мин</text>
+      <text x="704" y="102" text-anchor="middle" fill="#7a8099" font-size="8">очередь ≤ Q_max=50</text>
+
+      <!-- Store 2..N -->
+      <rect x="630" y="124" width="148" height="52" rx="8" fill="#151824" stroke="#3ecf8e" stroke-width="1.5" stroke-dasharray="5,3"/>
+      <text x="704" y="143" text-anchor="middle" fill="#3ecf8e" font-size="11" font-weight="600">🏪 Store 2…N</text>
+      <text x="704" y="157" text-anchor="middle" fill="#7a8099" font-size="8">аналогично</text>
+      <text x="704" y="170" text-anchor="middle" fill="#7a8099" font-size="8">Bern(p=0.02) → брак сборки</text>
+
+      <!-- Dispatcher → Stores -->
+      <line x1="575" y1="84" x2="628" y2="72" stroke="#3ecf8e" stroke-width="1.4" marker-end="url(#ah-g)"/>
+      <line x1="575" y1="104" x2="628" y2="148" stroke="#3ecf8e" stroke-width="1.4" stroke-dasharray="4,2" marker-end="url(#ah-g)"/>
+      <text x="596" y="95" fill="#7a8099" font-size="8">назначить</text>
+
+      <!-- Q_full → CANCELLED -->
+      <path d="M 778 56 Q 820 50 820 28 Q 820 8 720 8 Q 650 8 650 18" fill="none" stroke="#f87171" stroke-width="1.1" stroke-dasharray="3,2" marker-end="url(#ah-r)"/>
+      <text x="824" y="40" fill="#f87171" font-size="7" text-anchor="end">Q_full→drop</text>
+
+      <!-- Courier Pool -->
+      <rect x="226" y="276" width="168" height="66" rx="8" fill="#151824" stroke="#7ecaff" stroke-width="1.5"/>
+      <text x="310" y="297" text-anchor="middle" fill="#7ecaff" font-size="12" font-weight="600">🚴 Courier Pool</text>
+      <text x="310" y="312" text-anchor="middle" fill="#7a8099" font-size="9">M горутин-воркеров</text>
+      <text x="310" y="326" text-anchor="middle" fill="#7a8099" font-size="9">priorityStagingChan + stagingChan</text>
+      <text x="310" y="336" text-anchor="middle" fill="#7a8099" font-size="8">LN(0,0.35) · Pois(λ_break)</text>
+
+      <!-- Stores → Courier (assembled → staging) -->
+      <path d="M 704 108 Q 694 244 400 298" fill="none" stroke="#7ecaff" stroke-width="1.4" marker-end="url(#ah)"/>
+      <path d="M 704 176 Q 688 248 400 306" fill="none" stroke="#7ecaff" stroke-width="1.4" stroke-dasharray="4,2" marker-end="url(#ah)"/>
+      <text x="600" y="240" fill="#7a8099" font-size="8" text-anchor="middle">собран → staging</text>
+
+      <!-- express priority annotation -->
+      <text x="424" y="238" fill="#fbbf24" font-size="8">express↑ priorityStagingChan</text>
+
+      <!-- FAILED_ATTEMPT -->
+      <rect x="420" y="290" width="130" height="34" rx="7" fill="#1f1520" stroke="#f87171" stroke-width="1.2"/>
+      <text x="485" y="305" text-anchor="middle" fill="#f87171" font-size="9" font-weight="600">FAILED_ATTEMPT</text>
+      <text x="485" y="318" text-anchor="middle" fill="#7a8099" font-size="8">поломка → Exp(30м) → резюм</text>
+      <line x1="394" y1="308" x2="418" y2="308" stroke="#f87171" stroke-width="1.1" marker-end="url(#ah-r)"/>
+      <path d="M 420 318 Q 408 330 406 316" fill="none" stroke="#f87171" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#ah-r)"/>
+
+      <!-- Customer delivery diamond -->
+      <polygon points="310,416 374,442 310,468 246,442" fill="#151824" stroke="#fbbf24" stroke-width="1.5"/>
+      <text x="310" y="438" text-anchor="middle" fill="#fbbf24" font-size="10" font-weight="600">Клиент</text>
+      <text x="310" y="453" text-anchor="middle" fill="#7a8099" font-size="8">принять? (2 попытки)</text>
+      <line x1="310" y1="342" x2="310" y2="414" stroke="#7ecaff" stroke-width="1.5" marker-end="url(#ah)"/>
+      <text x="328" y="384" fill="#7a8099" font-size="8">T_travel</text>
+
+      <!-- DELIVERED -->
+      <ellipse cx="490" cy="442" rx="72" ry="26" fill="#0f2820" stroke="#3ecf8e" stroke-width="1.5"/>
+      <text x="490" y="437" text-anchor="middle" fill="#3ecf8e" font-size="11" font-weight="600">✓ DELIVERED</text>
+      <text x="490" y="452" text-anchor="middle" fill="#3ecf8e" font-size="9">ServedCount++</text>
+      <line x1="374" y1="442" x2="416" y2="442" stroke="#3ecf8e" stroke-width="1.5" marker-end="url(#ah-g)"/>
+
+      <!-- CANCELLED: max-attempts / SLA-breach -->
+      <rect x="116" y="430" width="122" height="36" rx="7" fill="#2a0f0f" stroke="#f87171" stroke-width="1.3"/>
+      <text x="177" y="445" text-anchor="middle" fill="#f87171" font-size="9" font-weight="600">✗ CANCELLED</text>
+      <text x="177" y="458" text-anchor="middle" fill="#7a8099" font-size="8">2 неудачи / SLA→выход</text>
+      <line x1="246" y1="442" x2="240" y2="442" stroke="#f87171" stroke-width="1.3" marker-end="url(#ah-r)"/>
+
+      <!-- Return logistics -->
+      <rect x="216" y="506" width="188" height="46" rx="8" fill="#2a1a0f" stroke="#fbbf24" stroke-width="1.5"/>
+      <text x="310" y="525" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="600">↩ Обратная логистика</text>
+      <text x="310" y="540" text-anchor="middle" fill="#7a8099" font-size="8">Refused40% · Late30% · Defective20% · Wrong10%</text>
+      <text x="310" y="548" text-anchor="middle" fill="#7a8099" font-size="7">T_ret~LN · T_insp~Exp(10м)</text>
+      <line x1="310" y1="468" x2="310" y2="504" stroke="#f87171" stroke-width="1.5" marker-end="url(#ah-r)"/>
+      <text x="328" y="490" fill="#f87171" font-size="8">p_ret</text>
+
+      <!-- Route decision -->
+      <polygon points="566,510 628,530 566,550 504,530" fill="#151824" stroke="#c084fc" stroke-width="1.4"/>
+      <text x="566" y="527" text-anchor="middle" fill="#c084fc" font-size="9" font-weight="600">Маршрут</text>
+      <text x="566" y="541" text-anchor="middle" fill="#7a8099" font-size="8">возврата</text>
+      <line x1="404" y1="530" x2="502" y2="530" stroke="#fbbf24" stroke-width="1.4" marker-end="url(#ah-y)"/>
+
+      <!-- Sorting Hub -->
+      <rect x="648" y="510" width="146" height="46" rx="8" fill="#151824" stroke="#7ecaff" stroke-width="1.5"/>
+      <text x="721" y="530" text-anchor="middle" fill="#7ecaff" font-size="11" font-weight="600">🏭 Sorting Hub</text>
+      <text x="721" y="544" text-anchor="middle" fill="#7a8099" font-size="8">Инспекция · Exp(10м)</text>
+      <text x="721" y="553" text-anchor="middle" fill="#7a8099" font-size="7">RESTOCKED | DISPOSED(крит.брак)</text>
+      <line x1="628" y1="530" x2="646" y2="524" stroke="#7ecaff" stroke-width="1.4" marker-end="url(#ah)"/>
+
+      <!-- Route → Store back (60%) -->
+      <path d="M 566 510 Q 566 440 650 400 Q 720 368 746 280 Q 754 220 720 190" fill="none" stroke="#3ecf8e" stroke-width="1.3" stroke-dasharray="5,3" marker-end="url(#ah-g)"/>
+      <text x="690" y="370" fill="#7a8099" font-size="8">P=0.6→Store</text>
+
+      <!-- RESTOCKED terminal -->
+      <ellipse cx="752" cy="470" rx="52" ry="20" fill="#0f2820" stroke="#3ecf8e" stroke-width="1.2"/>
+      <text x="752" y="466" text-anchor="middle" fill="#3ecf8e" font-size="8" font-weight="600">RESTOCKED</text>
+      <text x="752" y="478" text-anchor="middle" fill="#3ecf8e" font-size="7">инв +1</text>
+      <line x1="726" y1="510" x2="740" y2="492" stroke="#3ecf8e" stroke-width="1.1" marker-end="url(#ah-g)"/>
+
+      <!-- DISPOSED terminal -->
+      <ellipse cx="640" cy="470" rx="44" ry="20" fill="#1a0f0f" stroke="#f87171" stroke-width="1"/>
+      <text x="640" y="466" text-anchor="middle" fill="#f87171" font-size="8" font-weight="600">🗑 DISPOSED</text>
+      <text x="640" y="478" text-anchor="middle" fill="#7a8099" font-size="7">критич. брак</text>
+      <line x1="662" y1="510" x2="654" y2="492" stroke="#f87171" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#ah-r)"/>
     </svg>
-    <p class="diagram-caption">Рис. 2 — Блок-схема системы: прямой и обратный потоки</p>
+    <p class="diagram-caption">Рис. 2 — Блок-схема системы: приоритетные потоки, узлы CANCELLED (3 вида), FAILED_ATTEMPT, DISPOSED</p>
   </div>
+
 
   <!-- ── DFD ── -->
   <h3 id="s1-dfd">Диаграмма потоков данных и материалов</h3>
   <div class="diagram-wrap">
-    <svg viewBox="0 0 820 280" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI',system-ui,sans-serif">
+    <svg viewBox="0 0 860 360" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI',system-ui,sans-serif">
       <defs>
-        <marker id="dfd-arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="#5b8af7"/>
-        </marker>
-        <marker id="dfd-ret" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="#fbbf24"/>
-        </marker>
-        <marker id="dfd-info" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="#c084fc"/>
-        </marker>
-        <marker id="dfd-fail" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="#f87171"/>
-        </marker>
+        <marker id="dfd-arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#5b8af7"/></marker>
+        <marker id="dfd-ret"   markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#fbbf24"/></marker>
+        <marker id="dfd-info"  markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#c084fc"/></marker>
+        <marker id="dfd-fail"  markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#f87171"/></marker>
+        <marker id="dfd-grn"   markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#3ecf8e"/></marker>
       </defs>
-      <rect width="820" height="280" fill="#1a1d27" rx="10"/>
+      <rect width="860" height="360" fill="#1a1d27" rx="10"/>
 
-      <!-- FORWARD FLOW LABEL -->
-      <text x="20" y="30" fill="#7a8099" font-size="11" font-weight="600" text-transform="uppercase">ПРЯМОЙ ПОТОК (товар + информация)</text>
-      <!-- States row 1 -->
-      <g>
-        <rect x="20" y="44" width="106" height="36" rx="6" fill="#151824" stroke="#5b8af7" stroke-width="1.4"/>
-        <text x="73" y="60" text-anchor="middle" fill="#7ecaff" font-size="10" font-weight="600">CREATED</text>
-        <text x="73" y="74" text-anchor="middle" fill="#7a8099" font-size="9">заявка принята</text>
-      </g>
-      <g>
-        <rect x="150" y="44" width="106" height="36" rx="6" fill="#151824" stroke="#5b8af7" stroke-width="1.4"/>
-        <text x="203" y="60" text-anchor="middle" fill="#7ecaff" font-size="10" font-weight="600">DISPATCHED</text>
-        <text x="203" y="74" text-anchor="middle" fill="#7a8099" font-size="9">магазин назначен</text>
-      </g>
-      <g>
-        <rect x="280" y="44" width="106" height="36" rx="6" fill="#151824" stroke="#5b8af7" stroke-width="1.4"/>
-        <text x="333" y="60" text-anchor="middle" fill="#7ecaff" font-size="10" font-weight="600">ASSEMBLING</text>
-        <text x="333" y="74" text-anchor="middle" fill="#7a8099" font-size="9">сборка на складе</text>
-      </g>
-      <g>
-        <rect x="410" y="44" width="112" height="36" rx="6" fill="#151824" stroke="#5b8af7" stroke-width="1.4"/>
-        <text x="466" y="60" text-anchor="middle" fill="#7ecaff" font-size="10" font-weight="600">READY_PICKUP</text>
-        <text x="466" y="74" text-anchor="middle" fill="#7a8099" font-size="9">ожидает курьера</text>
-      </g>
-      <g>
-        <rect x="546" y="44" width="106" height="36" rx="6" fill="#151824" stroke="#5b8af7" stroke-width="1.4"/>
-        <text x="599" y="60" text-anchor="middle" fill="#7ecaff" font-size="10" font-weight="600">IN_TRANSIT</text>
-        <text x="599" y="74" text-anchor="middle" fill="#7a8099" font-size="9">курьер в пути</text>
-      </g>
-      <g>
-        <rect x="676" y="44" width="106" height="36" rx="6" fill="#0f2820" stroke="#3ecf8e" stroke-width="1.5"/>
-        <text x="729" y="60" text-anchor="middle" fill="#3ecf8e" font-size="10" font-weight="600">DELIVERED</text>
-        <text x="729" y="74" text-anchor="middle" fill="#3ecf8e" font-size="9">✓ успех</text>
-      </g>
-      <!-- arrows fwd -->
-      <line x1="126" y1="62" x2="148" y2="62" stroke="#5b8af7" stroke-width="1.4" marker-end="url(#dfd-arrow)"/>
-      <line x1="256" y1="62" x2="278" y2="62" stroke="#5b8af7" stroke-width="1.4" marker-end="url(#dfd-arrow)"/>
-      <line x1="386" y1="62" x2="408" y2="62" stroke="#5b8af7" stroke-width="1.4" marker-end="url(#dfd-arrow)"/>
-      <line x1="522" y1="62" x2="544" y2="62" stroke="#5b8af7" stroke-width="1.4" marker-end="url(#dfd-arrow)"/>
-      <line x1="652" y1="62" x2="674" y2="62" stroke="#5b8af7" stroke-width="1.4" marker-end="url(#dfd-arrow)"/>
+      <!-- ─ ROW 1 label ─ -->
+      <text x="20" y="24" fill="#7a8099" font-size="10" font-weight="600">ПРЯМОЙ ПОТОК</text>
 
-      <!-- RETURN FLOW LABEL -->
-      <text x="20" y="138" fill="#7a8099" font-size="11" font-weight="600">ОБРАТНЫЙ ПОТОК (возврат товара)</text>
-      <!-- Return states -->
-      <g>
-        <rect x="150" y="154" width="120" height="36" rx="6" fill="#2a1a0f" stroke="#fbbf24" stroke-width="1.4"/>
-        <text x="210" y="170" text-anchor="middle" fill="#fbbf24" font-size="10" font-weight="600">RETURN_INIT</text>
-        <text x="210" y="184" text-anchor="middle" fill="#7a8099" font-size="9">отказ / брак</text>
-      </g>
-      <g>
-        <rect x="310" y="154" width="120" height="36" rx="6" fill="#2a1a0f" stroke="#fbbf24" stroke-width="1.4"/>
-        <text x="370" y="170" text-anchor="middle" fill="#fbbf24" font-size="10" font-weight="600">RETURNING</text>
-        <text x="370" y="184" text-anchor="middle" fill="#7a8099" font-size="9">курьер везёт назад</text>
-      </g>
-      <g>
-        <rect x="470" y="154" width="120" height="36" rx="6" fill="#151824" stroke="#7ecaff" stroke-width="1.4"/>
-        <text x="530" y="170" text-anchor="middle" fill="#7ecaff" font-size="10" font-weight="600">INSPECTING</text>
-        <text x="530" y="184" text-anchor="middle" fill="#7a8099" font-size="9">инспекция хаб/склад</text>
-      </g>
-      <g>
-        <rect x="630" y="154" width="110" height="36" rx="6" fill="#0f2820" stroke="#3ecf8e" stroke-width="1.5"/>
-        <text x="685" y="170" text-anchor="middle" fill="#3ecf8e" font-size="10" font-weight="600">RESTOCKED</text>
-        <text x="685" y="184" text-anchor="middle" fill="#3ecf8e" font-size="9">↩ инвентарь +1</text>
-      </g>
-      <!-- FAILED_ATTEMPT transient state (IN_TRANSIT: courier breakdown → repair → resume) -->
-      <rect x="546" y="94" width="106" height="32" rx="5" fill="#1f1520" stroke="#f87171" stroke-width="1.2"/>
-      <text x="599" y="107" text-anchor="middle" fill="#f87171" font-size="9" font-weight="600">FAILED_ATTEMPT</text>
-      <text x="599" y="119" text-anchor="middle" fill="#7a8099" font-size="8">поломка → ремонт</text>
-      <!-- IN_TRANSIT → FAILED_ATTEMPT (breakdown event) -->
-      <line x1="590" y1="80" x2="590" y2="93" stroke="#f87171" stroke-width="1.2" marker-end="url(#dfd-fail)"/>
-      <!-- FAILED_ATTEMPT → resume IN_TRANSIT (repaired, continues) -->
-      <path d="M 546 110 Q 518 96 518 62 Q 518 50 545 62" fill="none" stroke="#f87171" stroke-width="1.1" stroke-dasharray="3,2" marker-end="url(#dfd-fail)"/>
-      <!-- from IN_TRANSIT branch down (p_ret → RETURN_INIT, customer refuses) -->
-      <path d="M 610 80 Q 610 130 480 130 Q 380 130 350 155" fill="none" stroke="#fbbf24" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#dfd-ret)"/>
-      <text x="505" y="127" fill="#7a8099" font-size="9">p_ret</text>
-      <!-- return arrows -->
-      <line x1="270" y1="172" x2="308" y2="172" stroke="#fbbf24" stroke-width="1.4" marker-end="url(#dfd-ret)"/>
-      <line x1="430" y1="172" x2="468" y2="172" stroke="#fbbf24" stroke-width="1.4" marker-end="url(#dfd-ret)"/>
-      <line x1="590" y1="172" x2="628" y2="172" stroke="#fbbf24" stroke-width="1.4" marker-end="url(#dfd-ret)"/>
+      <!-- CREATED -->
+      <rect x="10"  y="32" width="96" height="36" rx="6" fill="#151824" stroke="#5b8af7" stroke-width="1.4"/>
+      <text x="58"  y="48" text-anchor="middle" fill="#7ecaff" font-size="9" font-weight="600">CREATED</text>
+      <text x="58"  y="61" text-anchor="middle" fill="#7a8099" font-size="8">τ~Exp(λ) · priority</text>
 
-      <!-- INFO FLOW LABEL -->
-      <text x="20" y="232" fill="#7a8099" font-size="11" font-weight="600">ИНФОРМАЦИОННЫЙ ПОТОК (StatusLog → Метрики)</text>
-      <rect x="20" y="248" width="120" height="26" rx="5" fill="#151824" stroke="#c084fc" stroke-width="1.2"/>
-      <text x="80" y="265" text-anchor="middle" fill="#c084fc" font-size="10">StatusLog</text>
-      <line x1="140" y1="261" x2="168" y2="261" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="3,2" marker-end="url(#dfd-info)"/>
-      <rect x="170" y="248" width="130" height="26" rx="5" fill="#151824" stroke="#c084fc" stroke-width="1.2"/>
-      <text x="235" y="265" text-anchor="middle" fill="#c084fc" font-size="10">StatsCollector</text>
-      <line x1="300" y1="261" x2="328" y2="261" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="3,2" marker-end="url(#dfd-info)"/>
-      <rect x="330" y="248" width="330" height="26" rx="5" fill="#151824" stroke="#c084fc" stroke-width="1.2"/>
-      <text x="495" y="265" text-anchor="middle" fill="#c084fc" font-size="10">📊 AvgDeliveryTime · Utilization · QueueLen · ServedCount · ReturnRate</text>
+      <!-- DISPATCHED -->
+      <rect x="122" y="32" width="104" height="36" rx="6" fill="#151824" stroke="#5b8af7" stroke-width="1.4"/>
+      <text x="174" y="48" text-anchor="middle" fill="#7ecaff" font-size="9" font-weight="600">DISPATCHED</text>
+      <text x="174" y="61" text-anchor="middle" fill="#7a8099" font-size="8">score→Store[i]</text>
+
+      <!-- ASSEMBLING -->
+      <rect x="242" y="32" width="104" height="36" rx="6" fill="#151824" stroke="#5b8af7" stroke-width="1.4"/>
+      <text x="294" y="48" text-anchor="middle" fill="#7ecaff" font-size="9" font-weight="600">ASSEMBLING</text>
+      <text x="294" y="61" text-anchor="middle" fill="#7a8099" font-size="8">N(15,4)·w</text>
+
+      <!-- READY_PICKUP -->
+      <rect x="362" y="32" width="110" height="36" rx="6" fill="#151824" stroke="#5b8af7" stroke-width="1.4"/>
+      <text x="417" y="48" text-anchor="middle" fill="#7ecaff" font-size="9" font-weight="600">READY_PICKUP</text>
+      <text x="417" y="61" text-anchor="middle" fill="#7a8099" font-size="8">staging queue</text>
+
+      <!-- IN_TRANSIT -->
+      <rect x="488" y="32" width="104" height="36" rx="6" fill="#151824" stroke="#5b8af7" stroke-width="1.4"/>
+      <text x="540" y="48" text-anchor="middle" fill="#7ecaff" font-size="9" font-weight="600">IN_TRANSIT</text>
+      <text x="540" y="61" text-anchor="middle" fill="#7a8099" font-size="8">dist/v·LN(0,.35)</text>
+
+      <!-- DELIVERED -->
+      <rect x="608" y="32" width="104" height="36" rx="6" fill="#0f2820" stroke="#3ecf8e" stroke-width="1.5"/>
+      <text x="660" y="48" text-anchor="middle" fill="#3ecf8e" font-size="9" font-weight="600">✓ DELIVERED</text>
+      <text x="660" y="61" text-anchor="middle" fill="#3ecf8e" font-size="8">ServedCount++</text>
+
+      <!-- fwd arrows -->
+      <line x1="106" y1="50" x2="120" y2="50" stroke="#5b8af7" stroke-width="1.4" marker-end="url(#dfd-arrow)"/>
+      <line x1="226" y1="50" x2="240" y2="50" stroke="#5b8af7" stroke-width="1.4" marker-end="url(#dfd-arrow)"/>
+      <line x1="346" y1="50" x2="360" y2="50" stroke="#5b8af7" stroke-width="1.4" marker-end="url(#dfd-arrow)"/>
+      <line x1="472" y1="50" x2="486" y2="50" stroke="#5b8af7" stroke-width="1.4" marker-end="url(#dfd-arrow)"/>
+      <line x1="592" y1="50" x2="606" y2="50" stroke="#5b8af7" stroke-width="1.4" marker-end="url(#dfd-arrow)"/>
+
+      <!-- CANCELLED nodes (top, above states) -->
+      <!-- 1: no-stock / SLA-unreachable from DISPATCHED -->
+      <rect x="122" y="4" width="104" height="22" rx="5" fill="#2a0f0f" stroke="#f87171" stroke-width="1"/>
+      <text x="174" y="19" text-anchor="middle" fill="#f87171" font-size="8" font-weight="600">✗ CANCELLED (no-stock)</text>
+      <line x1="174" y1="32" x2="174" y2="27" stroke="#f87171" stroke-width="1" marker-end="url(#dfd-fail)"/>
+      <text x="155" y="31" fill="#f87171" font-size="7">нет товара</text>
+
+      <!-- 2: Q_full from ASSEMBLING -->
+      <rect x="242" y="4" width="104" height="22" rx="5" fill="#2a0f0f" stroke="#f87171" stroke-width="1"/>
+      <text x="294" y="19" text-anchor="middle" fill="#f87171" font-size="8" font-weight="600">✗ CANCELLED (Q_full)</text>
+      <line x1="294" y1="32" x2="294" y2="27" stroke="#f87171" stroke-width="1" marker-end="url(#dfd-fail)"/>
+      <text x="275" y="31" fill="#f87171" font-size="7">очередь полная</text>
+
+      <!-- 3: SLA breach / max-attempts from IN_TRANSIT -->
+      <rect x="730" y="32" width="120" height="36" rx="5" fill="#2a0f0f" stroke="#f87171" stroke-width="1"/>
+      <text x="790" y="48" text-anchor="middle" fill="#f87171" font-size="8" font-weight="600">✗ CANCELLED</text>
+      <text x="790" y="60" text-anchor="middle" fill="#7a8099" font-size="7">SLA·breach / 2×absent</text>
+      <line x1="712" y1="50" x2="728" y2="50" stroke="#f87171" stroke-width="1.1" marker-end="url(#dfd-fail)"/>
+
+      <!-- FAILED_ATTEMPT (below IN_TRANSIT) -->
+      <rect x="488" y="78" width="104" height="28" rx="5" fill="#1f1520" stroke="#f87171" stroke-width="1.1"/>
+      <text x="540" y="91" text-anchor="middle" fill="#f87171" font-size="8" font-weight="600">FAILED_ATTEMPT</text>
+      <text x="540" y="101" text-anchor="middle" fill="#7a8099" font-size="7">поломка→Exp(30м)→резюм</text>
+      <line x1="531" y1="68" x2="531" y2="77" stroke="#f87171" stroke-width="1.1" marker-end="url(#dfd-fail)"/>
+      <path d="M 488 92 Q 468 84 468 50 Q 468 44 487 50" fill="none" stroke="#f87171" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#dfd-fail)"/>
+
+      <!-- defect at packing: ASSEMBLING → RETURN branch (below) -->
+      <path d="M 294 68 Q 294 120 230 120 Q 186 120 186 144" fill="none" stroke="#fbbf24" stroke-width="1.1" stroke-dasharray="4,3" marker-end="url(#dfd-ret)"/>
+      <text x="245" y="116" fill="#7a8099" font-size="7">брак(сборка)</text>
+
+      <!-- ─ ROW 2 label ─ -->
+      <text x="20" y="138" fill="#7a8099" font-size="10" font-weight="600">ОБРАТНЫЙ ПОТОК</text>
+
+      <rect x="122" y="148" width="110" height="36" rx="6" fill="#2a1a0f" stroke="#fbbf24" stroke-width="1.4"/>
+      <text x="177" y="164" text-anchor="middle" fill="#fbbf24" font-size="9" font-weight="600">RETURN_INIT</text>
+      <text x="177" y="177" text-anchor="middle" fill="#7a8099" font-size="7">Refused40%·Late30%·Def20%·Wrong10%</text>
+
+      <rect x="248" y="148" width="110" height="36" rx="6" fill="#2a1a0f" stroke="#fbbf24" stroke-width="1.4"/>
+      <text x="303" y="164" text-anchor="middle" fill="#fbbf24" font-size="9" font-weight="600">RETURNING</text>
+      <text x="303" y="177" text-anchor="middle" fill="#7a8099" font-size="7">dist/v·LN · хаб|маг 40/60</text>
+
+      <rect x="374" y="148" width="110" height="36" rx="6" fill="#151824" stroke="#7ecaff" stroke-width="1.4"/>
+      <text x="429" y="164" text-anchor="middle" fill="#7ecaff" font-size="9" font-weight="600">INSPECTING</text>
+      <text x="429" y="177" text-anchor="middle" fill="#7a8099" font-size="7">Exp(10м) · хаб|маг</text>
+
+      <!-- RESTOCKED -->
+      <rect x="500" y="148" width="100" height="36" rx="6" fill="#0f2820" stroke="#3ecf8e" stroke-width="1.5"/>
+      <text x="550" y="164" text-anchor="middle" fill="#3ecf8e" font-size="9" font-weight="600">RESTOCKED</text>
+      <text x="550" y="177" text-anchor="middle" fill="#3ecf8e" font-size="7">инв +1 SKU</text>
+
+      <!-- DISPOSED -->
+      <rect x="500" y="196" width="100" height="30" rx="6" fill="#1a0f0f" stroke="#f87171" stroke-width="1.2"/>
+      <text x="550" y="209" text-anchor="middle" fill="#f87171" font-size="9" font-weight="600">🗑 DISPOSED</text>
+      <text x="550" y="221" text-anchor="middle" fill="#7a8099" font-size="7">критич. брак</text>
+
+      <!-- return flow arrows -->
+      <!-- IN_TRANSIT → RETURN_INIT (p_ret at delivery) -->
+      <path d="M 552 68 Q 552 118 430 118 Q 310 118 256 148" fill="none" stroke="#fbbf24" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#dfd-ret)"/>
+      <text x="415" y="114" fill="#7a8099" font-size="7">p_ret(задержка)</text>
+      <line x1="232" y1="166" x2="246" y2="166" stroke="#fbbf24" stroke-width="1.3" marker-end="url(#dfd-ret)"/>
+      <line x1="358" y1="166" x2="372" y2="166" stroke="#fbbf24" stroke-width="1.3" marker-end="url(#dfd-ret)"/>
+      <!-- INSPECTING → RESTOCKED / DISPOSED -->
+      <line x1="484" y1="160" x2="498" y2="160" stroke="#3ecf8e" stroke-width="1.3" marker-end="url(#dfd-grn)"/>
+      <line x1="484" y1="178" x2="496" y2="206" stroke="#f87171" stroke-width="1.1" stroke-dasharray="3,2" marker-end="url(#dfd-fail)"/>
+      <text x="490" y="196" fill="#f87171" font-size="7">крит.</text>
+
+      <!-- ─ ROW 3 label ─ -->
+      <text x="20" y="252" fill="#7a8099" font-size="10" font-weight="600">ИНФОРМАЦИОННЫЙ ПОТОК (StatusLog → Метрики)</text>
+
+      <rect x="20"  y="264" width="110" height="26" rx="5" fill="#151824" stroke="#c084fc" stroke-width="1.2"/>
+      <text x="75"  y="281" text-anchor="middle" fill="#c084fc" font-size="9">StatusLog</text>
+      <line x1="130" y1="277" x2="158" y2="277" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="3,2" marker-end="url(#dfd-info)"/>
+      <rect x="160" y="264" width="130" height="26" rx="5" fill="#151824" stroke="#c084fc" stroke-width="1.2"/>
+      <text x="225" y="281" text-anchor="middle" fill="#c084fc" font-size="9">StatsCollector</text>
+      <line x1="290" y1="277" x2="318" y2="277" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="3,2" marker-end="url(#dfd-info)"/>
+      <rect x="320" y="264" width="520" height="26" rx="5" fill="#151824" stroke="#c084fc" stroke-width="1.2"/>
+      <text x="580" y="281" text-anchor="middle" fill="#c084fc" font-size="9">📊 AvgDeliveryTime · ServedCount · ReturnRate · Utilization · QueueLen · DisposeRate · SLABreach%</text>
+
+      <!-- SLA annotation -->
+      <text x="20" y="322" fill="#7a8099" font-size="9">⚠ express→SLA=60м · same-day→SLA=240м · standard→SLA=1440м · превышение SLA увеличивает p_ret в 1.5×</text>
     </svg>
-    <p class="diagram-caption">Рис. 3 — Диаграмма потоков: прямой поток товара, обратная логистика, информационный поток</p>
+    <p class="diagram-caption">Рис. 3 — DFD: прямой поток со статусами CANCELLED (3 причины), обратная логистика c DISPOSED-веткой, SLA-аннотация</p>
   </div>
 </div>
 
@@ -1010,24 +1062,36 @@
       <div class="io-row">
         <div class="io-cell in-cell">
           <div class="io-cell-label">📥 Вход</div>
-          <div class="io-cell-content">Модельное время <code>t</code>, параметр интенсивности <code>λ(t)</code></div>
+          <div class="io-cell-content">Модельное время <code>t</code>, параметр интенсивности <code>λ(t)</code>, распределение приоритетов</div>
         </div>
         <div class="io-cell proc-cell">
           <div class="io-cell-label">⚙️ Процесс</div>
-          <div class="io-cell-content">Генерация интервала <code>τ&nbsp;~&nbsp;Exp(λ(t))</code>. <code>λ(t)</code> переключается по суточному расписанию (ночь / утро / пик / вечер).</div>
+          <div class="io-cell-content">Генерация интервала <code>τ&nbsp;~&nbsp;Exp(λ(t))</code>. <code>λ(t)</code> переключается по суточному расписанию. Приоритет — по весам: 5% express, 20% same-day, 75% standard.</div>
         </div>
         <div class="io-cell out-cell">
           <div class="io-cell-label">📤 Выход</div>
-          <div class="io-cell-content">Объект <code>Order{ID, Items[], AddressID, Priority, CreatedAt}</code> → канал диспетчера</div>
+          <div class="io-cell-content">Объект <code>Order{ID, Items[], AddressID, Priority, SLA, CreatedAt}</code> → канал диспетчера</div>
         </div>
       </div>
 <pre class="algo">loop:
   hour := simTime.Hour()
-  λ := selectLambda(hour)      // 2 / 8 / 15 / 6 ord/h
-  τ := -ln(rand()) / λ         // τ ~ Exp(λ)
+  λ := selectLambda(hour)           // 2 / 8 / 15 / 6 зак/ч по расписанию
+  τ := -ln(rand()) / λ               // τ ~ Exp(λ)
   sleep(τ)
-  order := newOrder(nextID++, randomItems(), randomAddress(), ...)
-  dispatcherChan &lt;- order      // неблокирующий push
+  pri  := samplePriority()           // standard(75%) | same-day(20%) | express(5%)
+  sla  := SLA_minutes[pri]           // 1440 | 240 | 60 мин
+  order := Order{
+    ID:        nextID++,
+    Items:     sampleSKUs(1..5),     // 1–5 позиций из каталога
+    AddressID: randNode(cityGraph),  // случайный узел из 50
+    Priority:  pri,
+    SLA:       sla,
+    CreatedAt: simTime,
+  }
+  if pri == express:
+    priorityChan &lt;- order            // читается диспетчером первым
+  else:
+    dispatcherChan &lt;- order
 goto loop</pre>
     </div>
   </div>
@@ -1046,24 +1110,43 @@ goto loop</pre>
         </div>
         <div class="io-cell proc-cell">
           <div class="io-cell-label">⚙️ Процесс</div>
-          <div class="io-cell-content">Фильтрация по наличию товаров, ранжирование по <span class="formula">score<sub>i</sub> = w₁/dist<sub>i</sub> + w₂·avail<sub>i</sub></span>, выбор лучшего.</div>
+          <div class="io-cell-content">Фильтрация по наличию товаров + SLA-достижимости, ранжирование по <span class="formula">score<sub>i</sub> = w₁/dist<sub>i</sub> + w₂·avail<sub>i</sub></span>. Express-заказы читаются первыми из приоритетного канала.</div>
         </div>
         <div class="io-cell out-cell">
           <div class="io-cell-label">📤 Выход</div>
-          <div class="io-cell-content"><code>order.StoreID</code> заполнен; заказ поставлен в очередь <code>store[i].assemblyQueue</code></div>
+          <div class="io-cell-content"><code>order.StoreID</code> заполнен; заказ поставлен в очередь <code>store[i].assemblyQueue</code> | CANCELLED</div>
         </div>
       </div>
-<pre class="algo">eligible := []
-for each store s:
-    if s.hasItems(order.Items):
-        score = w1 / dist(order.Address, s) + w2 * s.availRatio()
-        eligible.append({s, score})
-if len(eligible) == 0:
-    order.setStatus(CANCELLED, "out-of-stock")
+<pre class="algo">// Диспетчер читает priorityChan первым через select
+select {
+case order := &lt;-priorityChan:   // express-заказы
+    dispatch(order)
+case order := &lt;-dispatcherChan:
+    dispatch(order)
+}
+
+func dispatch(order):
+  eligible := []
+  for each store s:
+    if s.hasItems(order.Items) &amp;&amp; canMeetSLA(s, order):
+      score = w1 / dist(order.Address, s) + w2 * s.availRatio()
+      eligible.append({s, score})
+
+  if len(eligible) == 0:
+    order.setStatus(CANCELLED, "no-stock-or-sla")
+    stats.RecordCancel("no-stock")
     return
-best := argmax(eligible, score)
-order.StoreID = best.ID
-best.assemblyQueue &lt;- order   // buffered channel (cap = Q_max)</pre>
+
+  best := argmax(eligible, score)
+  order.StoreID = best.ID
+  order.setStatus(DISPATCHED)
+
+  if len(best.assemblyQueue) == Q_max:   // очередь переполнена
+    order.setStatus(CANCELLED, "queue-full")
+    stats.RecordCancel("queue-full")
+    return
+
+  best.assemblyQueue &lt;- order            // buffered chan (cap = Q_max)</pre>
     </div>
   </div>
 
@@ -1081,24 +1164,30 @@ best.assemblyQueue &lt;- order   // buffered channel (cap = Q_max)</pre>
         </div>
         <div class="io-cell proc-cell">
           <div class="io-cell-label">⚙️ Процесс</div>
-          <div class="io-cell-content">Время <code>T<sub>asm</sub>&nbsp;~&nbsp;N(15,&nbsp;4)&nbsp;мин</code>, масштабируется на вес. Контроль качества: <code>Bern(p<sub>defect</sub>)</code>.</div>
+          <div class="io-cell-content">Время <code>T<sub>asm</sub>&nbsp;~&nbsp;N(15,&nbsp;4)&nbsp;мин</code>, масштабируется весовым коэффициентом позиций. Контроль качества: <code>Bern(p<sub>defect</sub>&nbsp;=&nbsp;0.02)</code>. Готовые express-заказы → priorityStagingChan.</div>
         </div>
         <div class="io-cell out-cell">
           <div class="io-cell-label">📤 Выход</div>
-          <div class="io-cell-content">Заказ в статусе <code>READY_FOR_PICKUP</code> → staging area курьерского пула</div>
+          <div class="io-cell-content">Заказ в статусе <code>READY_FOR_PICKUP</code> → priorityStagingChan / stagingChan; или <code>RETURN_INITIATED</code> при браке</div>
         </div>
       </div>
 <pre class="algo">order := &lt;-assemblyQueue
-slotSemaphore.Acquire()
+slotSemaphore.Acquire()             // K слотов на магазин
   store.reserveItems(order.Items)
   order.setStatus(ASSEMBLING)
-  T_asm = max(1, Normal(μ=15, σ=4)) * weightFactor(order)
+  w     := 1.0 + 0.05*(len(order.Items)-1)  // weightFactor: +5% за каждую доп. позицию
+  T_asm := max(1, Normal(μ=15, σ=4)) * w
   sleep(T_asm)
-  if Bernoulli(p_defect):          // p_defect = 0.02
-      order.setStatus(RETURN_INITIATED, "defect at packing")
+  if Bernoulli(p_defect=0.02):
+    order.ReturnReason = "DefectAtPacking"
+    order.setStatus(RETURN_INITIATED)
+    returnQueue &lt;- order             // немедленно в обратную логистику
   else:
-      order.setStatus(READY_FOR_PICKUP)
-      stagingArea &lt;- order
+    order.setStatus(READY_FOR_PICKUP)
+    if order.Priority == express:
+      priorityStagingChan &lt;- order   // приоритетный staging
+    else:
+      stagingChan &lt;- order
 slotSemaphore.Release()</pre>
     </div>
   </div>
@@ -1117,32 +1206,43 @@ slotSemaphore.Release()</pre>
         </div>
         <div class="io-cell proc-cell">
           <div class="io-cell-label">⚙️ Процесс</div>
-          <div class="io-cell-content"><span class="formula">T<sub>travel</sub> = dist / v × LN(0, σ<sub>tr</sub>)</span>. В пути: случайные поломки по Пуассону, ремонт <code>Exp(30мин)</code>.</div>
+          <div class="io-cell-content"><span class="formula">T<sub>travel</sub> = dist / v × LN(0, σ<sub>tr</sub>)</span>. Поломки по Пуассону: Exp(30мин) ремонт. После ремонта — возобновление. SLA-страж: отмена при превышении.</div>
         </div>
         <div class="io-cell out-cell">
           <div class="io-cell-label">📤 Выход</div>
-          <div class="io-cell-content">Курьер прибывает к клиенту → передача в Процесс 5</div>
+          <div class="io-cell-content">Курьер прибывает к клиенту → П5; или <code>CANCELLED</code> при SLA-нарушении</div>
         </div>
       </div>
-<pre class="algo">order := &lt;-stagingArea
+<pre class="algo">// Курьер читает приоритетный staging первым
+select {
+case order := &lt;-priorityStagingChan:  // express
+case order := &lt;-stagingChan:
+}
 courier.CurrentOrder = order
 order.setStatus(IN_TRANSIT)
-dist := map.Distance(store, customer)
-trafficK := LogNormal(μ=0, σ=0.35)
+
+dist     := cityGraph.Distance(order.StoreID, order.AddressID)
+trafficK := LogNormal(μ=0, σ=0.35)    // K_tr ≥ 0
 T_travel := dist / courier.Speed * trafficK
 
-// поломки прерывают движение
+// Цикл с шагом checkInterval=1мин: поломки + SLA-страж
 remaining := T_travel
 for remaining &gt; 0:
-    dt := min(remaining, checkInterval)
-    sleep(dt)
-    remaining -= dt
-    if Poisson_event(λ_breakdown, dt):
-        order.setStatus(FAILED_ATTEMPT, "breakdown")
-        T_repair := Exponential(μ=30)
-        sleep(T_repair)
+  dt := min(remaining, 1мин)
+  sleep(dt)
+  remaining -= dt
 
-deliver(courier, order)   // → Процесс 5</pre>
+  if Poisson_event(λ_break=0.1/сут, dt):
+    order.setStatus(FAILED_ATTEMPT, "breakdown")
+    sleep(Exponential(μ=30))    // ремонт
+    order.setStatus(IN_TRANSIT) // возобновление
+
+  if simTime - order.CreatedAt &gt; order.SLA:
+    order.setStatus(CANCELLED, "sla-breach")
+    stats.RecordCancel("sla-breach")
+    return
+
+deliver(courier, order)   // → П5</pre>
     </div>
   </div>
 
@@ -1160,33 +1260,43 @@ deliver(courier, order)   // → Процесс 5</pre>
         </div>
         <div class="io-cell proc-cell">
           <div class="io-cell-label">⚙️ Процесс</div>
-          <div class="io-cell-content">Три исхода: принял / не дома (повтор до 2 раз) / отказ. <span class="formula">p<sub>ret</sub>(delay) = p₀ · (1 + α · delay_ratio)</span></div>
+          <div class="io-cell-content">Три исхода: принял / не дома (повтор до 2 раз) / отказ. <span class="formula">p<sub>ret</sub>(Δ,SLA) = p₀ · (1 + α·delay_ratio) · β<sub>SLA</sub></span></div>
         </div>
         <div class="io-cell out-cell">
           <div class="io-cell-label">📤 Выход</div>
-          <div class="io-cell-content"><code>DELIVERED</code> или <code>RETURN_INITIATED</code> или <code>CANCELLED</code></div>
+          <div class="io-cell-content"><code>DELIVERED</code> или <code>RETURN_INITIATED</code> или <code>CANCELLED</code> (2 неудачи)</div>
         </div>
       </div>
-<pre class="algo">for attempt := 1; attempt &lt;= 2; attempt++:
-    if Bernoulli(p_not_home = 0.15):
-        sleep(Uniform(60, 240))    // ждём, когда освободится
-        continue                   // повторная попытка
-    
-    delay = actual_time - expected_time
-    delay_ratio = max(0, delay / expected_time)
-    p_ret = p_base * (1 + α * delay_ratio)   // α = 0.5
-    
-    if Bernoulli(p_ret):
-        reason := pickReason()     // Refused | Defective | WrongItem | Late
-        order.ReturnReason = reason
-        order.setStatus(RETURN_INITIATED)
-        return
-    else:
-        order.setStatus(DELIVERED)
-        stats.RecordDelivery(now - order.CreatedAt)
-        return
+<pre class="algo">for attempt := 1; attempt &lt;= maxAttempts=2; attempt++:
+  if Bernoulli(p_absent=0.15):
+    sleep(Uniform(60, 240))        // ждём, когда освободится
+    continue
 
-order.setStatus(CANCELLED, "max attempts exceeded")</pre>
+  delay       = simTime - order.CreatedAt - order.ExpectedDelivery
+  delay_ratio = max(0, delay / order.ExpectedDelivery)
+  sla_factor  = (simTime-order.CreatedAt &gt; order.SLA) ? 1.5 : 1.0
+  p_ret = p_base=0.08 * (1 + α=0.5 * delay_ratio) * sla_factor
+
+  if Bernoulli(p_ret):
+    // Распределение причин возврата:
+    reason := sample([
+      ("Refused",   0.40),   // клиент передумал
+      ("LateDeliv", 0.30),   // опоздание
+      ("Defective", 0.20),   // брак товара
+      ("WrongItem", 0.10),   // пересорт
+    ])
+    order.ReturnReason = reason
+    order.setStatus(RETURN_INITIATED)
+    returnQueue &lt;- order
+    return
+
+  order.setStatus(DELIVERED)
+  stats.RecordDelivery(simTime-order.CreatedAt, order.Priority)
+  return
+
+// все попытки исчерпаны
+order.setStatus(CANCELLED, "max-attempts")
+stats.RecordCancel("max-attempts")</pre>
     </div>
   </div>
 
@@ -1204,32 +1314,41 @@ order.setStatus(CANCELLED, "max attempts exceeded")</pre>
         </div>
         <div class="io-cell proc-cell">
           <div class="io-cell-label">⚙️ Процесс</div>
-          <div class="io-cell-content">Маршрутизация: 60% → исходный магазин, 40% → сортировочный хаб. Инспекция <code>Exp(10мин)</code>.</div>
+          <div class="io-cell-content">Маршрутизация: 60% → исходный магазин, 40% → сортировочный хаб. Инспекция <code>Exp(10мин)</code>. Критичный брак (бой, биоопасность, пересорт от стороннего заказа) → утилизация.</div>
         </div>
         <div class="io-cell out-cell">
           <div class="io-cell-label">📤 Выход</div>
-          <div class="io-cell-content">Инвентарь пополнен (<code>RESTOCKED</code>) или товар утилизирован</div>
+          <div class="io-cell-content">Инвентарь пополнен (<code>RESTOCKED</code>) или товар утилизирован (<code>DISPOSED</code>)</div>
         </div>
       </div>
-<pre class="algo">order.setStatus(RETURNING)
+<pre class="algo">order := &lt;-returnQueue
+order.setStatus(RETURNING)
+
 dest := sortingHub
 if Bernoulli(0.6):
-    dest = order.OriginalStore   // обратно в родной магазин
+  dest = order.OriginalStore         // в родной магазин
 
 T_return := dist(customer, dest) / courier.Speed * LogNormal(0, 0.35)
 sleep(T_return)
 
-// Инспекция
-T_inspect := Exponential(μ=10)
-sleep(T_inspect)
+order.setStatus(INSPECTING)
+sleep(Exponential(μ=10))            // T_inspect
 
-if isCriticalDefect(order.ReturnReason):
-    dispose(order)              // утилизация
-else:
-    dest.Inventory[SKU]++       // пополнить склад
+// Решение по причине возврата
+switch order.ReturnReason:
+case "Refused", "LateDeliv", "WrongItem":
+  dest.Inventory[SKU]++             // товар цел — вернуть в склад
+  order.setStatus(RESTOCKED)
+  stats.RecordReturn("restock", simTime-order.ReturnInitiatedAt)
+case "Defective", "DefectAtPacking":
+  // isCritical: разбит | биоопасен | chunkMissing > 1 позиции
+  if isCritical(order):
+    dispose(order)                  // утилизация — DISPOSED
+    stats.RecordReturn("disposed", ...)
+  else:
+    dest.Inventory[SKU]++           // ремонтопригодный — вернуть
     order.setStatus(RESTOCKED)
-
-stats.RecordReturn(now - order.ReturnInitiatedAt)</pre>
+    stats.RecordReturn("restock-repaired", ...)</pre>
     </div>
   </div>
 </div>
@@ -1349,6 +1468,40 @@ stats.RecordReturn(now - order.ReturnInitiatedAt)</pre>
       <tr><td>Коэфф. чувствительности к задержке</td><td><code>α</code></td><td>0.5</td><td>При 2× опоздании: p_ret ≈ 12% (модельная оценка)</td></tr>
       <tr><td>Доля возвратов в исходный магазин</td><td><code>p_store</code></td><td>0.60</td><td>Для дефектов ближайший склад предпочтительнее хаба</td></tr>
       <tr><td>Среднее время инспекции возврата</td><td><code>μ_insp</code></td><td>10 мин</td><td>Экспертная оценка операции проверки товара</td></tr>
+      <tr><td>Доля утилизации из возвратов</td><td><code>p_dispose</code></td><td>0.25</td><td>~25% инспектируемых возвратов признаётся критически бракованными → DISPOSED</td></tr>
+      <tr><td>Коэфф. SLA-штрафа на p_ret</td><td><code>β</code></td><td>1.5×</td><td>При нарушении SLA вероятность отказа при вручении умножается на β</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="s4-priority">Приоритетные классы доставки и SLA</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Тип доставки</th>
+        <th>Доля потока</th>
+        <th>SLA</th>
+        <th>Канал / механизм преемпции</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>standard</strong></td>
+        <td>75 %</td>
+        <td>24 ч&nbsp;(1 440 мин)</td>
+        <td>Общая очередь <code>dispatcherChan</code> и <code>stagingChan</code>; обрабатывается в порядке FIFO</td>
+      </tr>
+      <tr>
+        <td><strong>same-day</strong></td>
+        <td>20 %</td>
+        <td>4 ч&nbsp;(240 мин)</td>
+        <td>Также в <code>dispatcherChan</code>, но диспетчер проверяет <code>canMeetSLA()</code> немедленно; приоритет при сборке через <code>select</code></td>
+      </tr>
+      <tr>
+        <td><strong>express</strong></td>
+        <td>5 %</td>
+        <td>1 ч&nbsp;(60 мин)</td>
+        <td>Отдельный <code>priorityChan</code>, читается первым во всех <code>select</code>-блоках диспетчера, сборки и staging; немедленная преемпция очереди</td>
+      </tr>
     </tbody>
   </table>
 
@@ -1438,6 +1591,8 @@ stats.RecordReturn(now - order.ReturnInitiatedAt)</pre>
     <div class="metric-card"><div class="metric-value">≈87%</div><div class="metric-label">доля успешных доставок</div></div>
     <div class="metric-card"><div class="metric-value">180–220</div><div class="metric-label">заказов обслужено за 24 ч</div></div>
     <div class="metric-card"><div class="metric-value">8–13%</div><div class="metric-label">доля возвратов (baseline)</div></div>
+    <div class="metric-card"><div class="metric-value">~25%</div><div class="metric-label">DisposeRate · утилизация из возвратов</div></div>
+    <div class="metric-card"><div class="metric-value">3–7%</div><div class="metric-label">SLABreach% · нарушений SLA</div></div>
   </div>
 
   <table>
@@ -1449,6 +1604,8 @@ stats.RecordReturn(now - order.ReturnInitiatedAt)</pre>
       <tr><td>Ср. длина очереди склада</td><td>5–15</td><td>20–40</td><td>8–20</td><td>10–25</td></tr>
       <tr><td>Доля возвратов, %</td><td>8–13</td><td>12–18</td><td>14–22</td><td>15–25</td></tr>
       <tr><td>Доля успешных доставок, %</td><td>85–90</td><td>78–85</td><td>72–82</td><td>65–75</td></tr>
+      <tr><td>SLABreach%, %</td><td>3–7</td><td>8–15</td><td>12–20</td><td>5–10</td></tr>
+      <tr><td>DisposeRate (из возвратов), %</td><td>22–28</td><td>20–25</td><td>25–35</td><td>22–30</td></tr>
     </tbody>
   </table>
 
@@ -1570,6 +1727,15 @@ stats.RecordReturn(now - order.ReturnInitiatedAt)</pre>
         <li><strong>Утилизация &gt; 90%</strong> → расширить пул до λ/μ</li>
         <li><strong>Очередь → Q_max</strong> → увеличить мощности сборки</li>
         <li><strong>Возвраты &gt; 15%</strong> → анализ ReturnReason по категориям</li>
+      </ul>
+    </div>
+    <div class="analysis-card" style="grid-column:1/-1">
+      <h4>⚡ E. SLA-перформанс по приоритетным классам</h4>
+      <ul>
+        <li>Доля SLABreach% измеряется отдельно для express / same-day / standard; ожидаем 0–2% / 2–5% / 5–10% соответственно</li>
+        <li>Измеряем выигрыш express от <code>priorityChan</code>: Δ = E[T<sub>express,без-приор.</sub>] − E[T<sub>express,priorityChan</sub>]; прогноз: Δ ≈ 8–15 мин в пиковые часы</li>
+        <li>Проверяем fairness: добавление express-заказов не должно деградировать среднее время standard более чем на ±5 мин (критерий fairness)</li>
+        <li>При SLABreach% express &gt; 5% → уменьшаем долю express в потоке или увеличиваем N_couriers</li>
       </ul>
     </div>
   </div>
