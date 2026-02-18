@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ПР №1 — EcomSupplySim</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #21263a;
+    --border: #2e3450;
+    --accent: #5b8af7;
+    --accent2: #7ecaff;
+    --green: #3ecf8e;
+    --red: #f87171;
+    --yellow: #fbbf24;
+    --text: #d4d8f0;
+    --text-muted: #7a8099;
+    --code-bg: #151824;
+    --radius: 10px;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); line-height: 1.7; }
+
+  /* ── LAYOUT ── */
+  .page { max-width: 1100px; margin: 0 auto; padding: 40px 28px 80px; }
+
+  /* ── HEADER ── */
+  .header { padding: 44px 0 36px; border-bottom: 1px solid var(--border); margin-bottom: 40px; }
+  .badge-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+  .badge {
+    font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+    padding: 4px 10px; border-radius: 20px;
+    background: var(--surface2); border: 1px solid var(--border); color: var(--accent2);
+  }
+  .badge.green { color: var(--green); border-color: #1f5c40; background: #0f2820; }
+  .badge.yellow { color: var(--yellow); border-color: #5c4b1f; background: #281f0f; }
+  h1 { font-size: 2.2rem; font-weight: 700; line-height: 1.25; color: #eef0ff; }
+  h1 span { color: var(--accent); }
+  .subtitle { margin-top: 10px; color: var(--text-muted); font-size: 1rem; }
+
+  /* ── TOC ── */
+  .toc { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 24px 28px; margin-bottom: 48px; }
+  .toc h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .1em; color: var(--text-muted);
+    margin-bottom: 14px; }
+  .toc ol { padding-left: 20px; }
+  .toc li { margin: 5px 0; }
+  .toc a { color: var(--accent2); text-decoration: none; font-size: .93rem; }
+  .toc a:hover { text-decoration: underline; }
+
+  /* ── SECTIONS ── */
+  .section { margin-bottom: 56px; }
+  h2.section-title {
+    font-size: 1.5rem; font-weight: 700; color: #eef0ff;
+    padding-bottom: 10px; border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  h2.section-title .num {
+    background: var(--accent); color: #fff; font-size: .8rem; font-weight: 700;
+    border-radius: 6px; padding: 2px 8px; flex-shrink: 0;
+  }
+  h3 { font-size: 1.1rem; font-weight: 600; color: var(--accent2); margin: 28px 0 12px; }
+  h4 { font-size: .95rem; font-weight: 600; color: var(--text); margin: 18px 0 8px;
+    text-transform: uppercase; letter-spacing: .05em; font-size: .82rem; color: var(--text-muted); }
+  p { margin-bottom: 12px; }
+
+  /* ── BOUNDARIES BOX ── */
+  .bounds-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0 20px; }
+  .bounds-card { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px 20px; }
+  .bounds-card h4 { margin: 0 0 10px; }
+  .bounds-card ul { padding-left: 18px; }
+  .bounds-card li { font-size: .9rem; margin-bottom: 5px; color: var(--text); }
+  .bounds-card.in { border-left: 3px solid var(--green); }
+  .bounds-card.out { border-left: 3px solid var(--red); }
+  .bounds-card.io { border-left: 3px solid var(--accent); }
+
+  /* ── COMPONENTS TABLE ── */
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: .9rem; }
+  th { background: var(--surface2); color: var(--text-muted); font-size: .75rem;
+    text-transform: uppercase; letter-spacing: .07em; padding: 10px 14px;
+    border-bottom: 1px solid var(--border); text-align: left; }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+  code { background: var(--code-bg); color: var(--accent2); padding: 2px 6px;
+    border-radius: 4px; font-size: .85em; font-family: 'Cascadia Code','Fira Code',monospace; }
+  .tag {
+    display: inline-block; font-size: .72rem; padding: 2px 8px; border-radius: 12px;
+    font-weight: 600; letter-spacing: .03em;
+  }
+  .tag.process { background: #1a2d4a; color: var(--accent2); border: 1px solid #2a4070; }
+  .tag.resource { background: #1a3028; color: var(--green); border: 1px solid #1f5040; }
+  .tag.monitor { background: #2a1a3a; color: #c084fc; border: 1px solid #4a2a6a; }
+  .tag.passive { background: #3a2a1a; color: var(--yellow); border: 1px solid #5a3a1a; }
+
+  /* ── DIAGRAM SVG wrappers ── */
+  .diagram-wrap {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 24px; overflow-x: auto; margin: 20px 0 28px; text-align: center;
+  }
+  .diagram-wrap svg { max-width: 100%; height: auto; }
+  .diagram-caption { font-size: .8rem; color: var(--text-muted); margin-top: 10px; }
+
+  /* ── PROCESS BLOCK ── */
+  .process-block {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    margin: 18px 0 28px; overflow: hidden;
+  }
+  .process-header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 20px; background: var(--surface2); border-bottom: 1px solid var(--border);
+  }
+  .process-num {
+    background: var(--accent); color: #fff; font-weight: 700; font-size: .8rem;
+    border-radius: 6px; padding: 3px 10px; white-space: nowrap;
+  }
+  .process-title { font-weight: 600; font-size: 1rem; color: #eef0ff; }
+  .process-body { padding: 18px 20px; }
+  .io-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 18px; }
+  .io-cell {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .io-cell-label {
+    font-size: .7rem; text-transform: uppercase; letter-spacing: .1em;
+    color: var(--text-muted); margin-bottom: 6px; font-weight: 600;
+  }
+  .io-cell-content { font-size: .88rem; color: var(--text); }
+  .io-cell.in-cell { border-top: 2px solid var(--accent); }
+  .io-cell.proc-cell { border-top: 2px solid var(--yellow); }
+  .io-cell.out-cell { border-top: 2px solid var(--green); }
+  pre.algo {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 18px; font-family: 'Cascadia Code','Fira Code','Courier New',monospace;
+    font-size: .82rem; color: #a8b5d8; overflow-x: auto; white-space: pre; line-height: 1.6;
+  }
+  .formula { font-style: italic; color: var(--accent2); }
+
+  /* ── DISTRIBUTIONS GRID ── */
+  .dist-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+  .dist-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px 18px; border-left: 3px solid var(--accent);
+  }
+  .dist-card.lognormal { border-left-color: var(--yellow); }
+  .dist-card.exp { border-left-color: #f87171; }
+  .dist-card.bernoulli { border-left-color: #c084fc; }
+  .dist-card.uniform { border-left-color: var(--green); }
+  .dist-name { font-weight: 700; font-size: .95rem; color: #eef0ff; margin-bottom: 4px; }
+  .dist-use { font-size: .8rem; color: var(--text-muted); margin-bottom: 8px; }
+  .dist-params { font-size: .82rem; background: var(--code-bg); border-radius: 6px;
+    padding: 6px 10px; margin-bottom: 8px; font-family: monospace; color: var(--accent2); }
+  .dist-reason { font-size: .85rem; color: var(--text); }
+
+  /* ── PARAMS TABLE ── */
+  .param-section { margin: 16px 0 24px; }
+  .param-section h3 { margin-top: 0; }
+
+  /* ── SCENARIO CARDS ── */
+  .scenario-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin: 16px 0 24px; }
+  .scenario-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px 18px;
+  }
+  .scenario-card.default { border-top: 3px solid var(--accent); }
+  .scenario-card.peak { border-top: 3px solid var(--yellow); }
+  .scenario-card.chaos { border-top: 3px solid var(--red); }
+  .scenario-card.under { border-top: 3px solid #c084fc; }
+  .sc-name { font-weight: 700; font-size: .95rem; color: #eef0ff; margin-bottom: 6px; }
+  .sc-desc { font-size: .85rem; color: var(--text-muted); margin-bottom: 8px; }
+  .sc-changes { font-size: .82rem; color: var(--text); }
+
+  /* ── METRIC CARDS ── */
+  .metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0 24px; }
+  .metric-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px 16px; text-align: center;
+  }
+  .metric-value { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+  .metric-label { font-size: .75rem; color: var(--text-muted); margin-top: 4px; text-transform: uppercase;
+    letter-spacing: .05em; }
+
+  /* ── ANALYSIS CARDS ── */
+  .analysis-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+  .analysis-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px 18px;
+  }
+  .analysis-card h4 { margin: 0 0 10px; font-size: .85rem; color: var(--accent2); text-transform: none;
+    letter-spacing: 0; font-weight: 600; }
+  .analysis-card ul { padding-left: 16px; }
+  .analysis-card li { font-size: .87rem; margin-bottom: 5px; }
+
+  /* ── CHART ── */
+  .chart-wrap { background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px 24px; margin: 16px 0 24px; }
+  .chart-title { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--text-muted); margin-bottom: 14px; font-weight: 600; }
+
+  /* ── ASSUMPTIONS ── */
+  .assumption-list { list-style: none; padding: 0; margin: 12px 0; }
+  .assumption-list li {
+    display: flex; gap: 12px; padding: 10px 14px;
+    border-bottom: 1px solid var(--border); font-size: .9rem;
+  }
+  .assumption-list li:last-child { border-bottom: none; }
+  .assumption-list .asm-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 2px; }
+  .assumption-list .asm-text strong { display: block; color: #eef0ff; margin-bottom: 2px; }
+  .assumption-list .asm-text span { color: var(--text-muted); font-size: .85rem; }
+
+  /* ── CALLOUT ── */
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--surface); border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 12px 16px; margin: 16px 0; font-size: .9rem;
+  }
+  .callout.warn { border-left-color: var(--yellow); }
+  .callout.success { border-left-color: var(--green); }
+
+  /* ── FOOTER ── */
+  .footer { border-top: 1px solid var(--border); padding-top: 24px; margin-top: 60px;
+    display: flex; justify-content: space-between; font-size: .8rem; color: var(--text-muted); flex-wrap: wrap; gap: 8px; }
+
+  /* ── STATUS BADGE ── */
+  .status {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: .78rem; padding: 2px 9px; border-radius: 12px; font-weight: 600;
+  }
+  .status.delivered { background: #0f2820; color: var(--green); border: 1px solid #1f5040; }
+  .status.returned { background: #2a1a0f; color: var(--yellow); border: 1px solid #5a3a1a; }
+  .status.cancelled { background: #2a0f0f; color: var(--red); border: 1px solid #5a1a1a; }
+
+  @media (max-width: 700px) {
+    .bounds-grid, .io-row, .dist-grid, .scenario-grid, .metric-grid, .analysis-grid { grid-template-columns: 1fr; }
+    h1 { font-size: 1.6rem; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ══════════════════════════════════════════
+     HEADER
+══════════════════════════════════════════ -->
+<div class="header">
+  <div class="badge-row">
+    <span class="badge green">Практическая работа №1</span>
+    <span class="badge">Вариант 6</span>
+    <span class="badge yellow">Go · Golang</span>
+    <span class="badge">ИТМО · Февраль 2026</span>
+  </div>
+  <h1>Имитационная модель<br><span>службы e-commerce доставки</span></h1>
+  <p class="subtitle">
+    Моделирование службы доставки с возвратом из нескольких магазинов &nbsp;·&nbsp;
+    Репозиторий: <code>EcomSupplySim</code>
+  </p>
+</div>
+
+<!-- TOC -->
+<div class="toc">
+  <h2>Содержание</h2>
+  <ol>
+    <li><a href="#s1">1. Разработка имитационной модели</a>
+      <ol type="a" style="margin-top:4px">
+        <li><a href="#s1-intro">1.1 Введение: блоки, законы, правила перехода</a></li>
+        <li><a href="#s1-bounds">1.2 Описание системы: границы, компоненты, схемы</a></li>
+      </ol>
+    </li>
+    <li><a href="#s2">2. Основные процессы</a></li>
+    <li><a href="#s3">3. Используемые распределения</a></li>
+    <li><a href="#s4">4. Параметры модели</a>
+      <ol type="a" style="margin-top:4px">
+        <li><a href="#s4-params">Входные параметры</a></li>
+        <li><a href="#s4-assumptions">Условия и предположения</a></li>
+      </ol>
+    </li>
+    <li><a href="#s5">5. Результаты моделирования</a>
+      <ol type="a" style="margin-top:4px">
+        <li><a href="#s5-expected">Ожидаемые результаты</a></li>
+        <li><a href="#s5-analysis">Предполагаемые способы анализа</a></li>
+      </ol>
+    </li>
+  </ol>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SECTION 1
+══════════════════════════════════════════ -->
+<div class="section" id="s1">
+  <h2 class="section-title"><span class="num">1</span> Разработка имитационной модели</h2>
+
+  <div class="callout success">
+    <strong>Реальный аналог:</strong> Маркетплейс типа Ozon / Wildberries — несколько распределённых складов-магазинов в городе, пул курьеров, динамическая диспетчеризация, возвраты товаров с обратной маршрутизацией. Все эти задачи — классика операционного менеджмента e-commerce компаний.
+  </div>
+
+  <h3 id="s1-intro">1.1 Введение</h3>
+  <p style="margin-bottom:16px">Модель представляет e-commerce логистику как систему из <strong>6 взаимодействующих функциональных блоков</strong>. Каждый блок принимает входной поток, преобразует его по математическому закону и передаёт управление следующему блоку через сигнал или буферизованную очередь. Система нелинейна: помимо прямого потока заказов существует <em>обратный поток возвратов</em>, 11 возможных статусов заказа и случайные прерывания (поломки курьеров, дефекты при сборке, перегрузка склада).</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:16%">Блок</th>
+        <th>Закон преобразования &nbsp;(вход → выход)</th>
+        <th>Правило перехода / выходной сигнал</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Б1</strong><br><span style="font-size:.8rem;color:var(--text-muted)">OrderGenerator</span></td>
+        <td>Интервал: <span class="formula">τ&thinsp;∼&thinsp;Exp(λ(t))</span><br><span style="font-size:.8rem;color:var(--text-muted)">λ(t) ∈ {2, 8, 15, 6} заказов/ч — суточное расписание</span></td>
+        <td>По истечении τ → сигнал <em>new_order</em> → Б2 Dispatcher</td>
+      </tr>
+      <tr>
+        <td><strong>Б2</strong><br><span style="font-size:.8rem;color:var(--text-muted)">Dispatcher</span></td>
+        <td><span class="formula">score<sub>i</sub> = w₁/dist<sub>i</sub> + w₂·avail<sub>i</sub></span><br><span style="font-size:.8rem;color:var(--text-muted)">Выбирается магазин с max(score)</span></td>
+        <td>→ <em>enqueue(order)</em> → Б3 Store[i];<br>нет товаров → CANCELLED</td>
+      </tr>
+      <tr>
+        <td><strong>Б3</strong><br><span style="font-size:.8rem;color:var(--text-muted)">Store Assembly</span></td>
+        <td><span class="formula">T<sub>asm</sub>&thinsp;∼&thinsp;N(15,&thinsp;4) мин × w<sub>factor</sub></span><br><span style="font-size:.8rem;color:var(--text-muted)">Контроль: Bern(p=0.02) → дефект</span></td>
+        <td>OK → <em>ready(order)</em> → Б4 Courier Pool;<br>дефект → <em>initReturn</em></td>
+      </tr>
+      <tr>
+        <td><strong>Б4</strong><br><span style="font-size:.8rem;color:var(--text-muted)">Courier Delivery</span></td>
+        <td><span class="formula">T<sub>travel</sub> = dist/v × K<sub>tr</sub></span>,&nbsp; K<sub>tr</sub>&thinsp;∼&thinsp;LN(0,&thinsp;0.35)<br><span style="font-size:.8rem;color:var(--text-muted)">Поломка: Pois(0.1/сут), T<sub>rem</sub>&thinsp;∼&thinsp;Exp(30 мин)</span></td>
+        <td>По прибытии → <em>arrived</em> → Б5 Customer</td>
+      </tr>
+      <tr>
+        <td><strong>Б5</strong><br><span style="font-size:.8rem;color:var(--text-muted)">Customer Interaction</span></td>
+        <td><span class="formula">p<sub>absent</sub>=0.15;&nbsp; p<sub>ret</sub>=p₀(1+α·Δ)</span><br><span style="font-size:.8rem;color:var(--text-muted)">Ожидание: U(60,&thinsp;240) мин; макс. 2 попытки</span></td>
+        <td>Принято → DELIVERED;<br>отказ → <em>initReturn</em> → Б6;<br>2 неудачи → CANCELLED</td>
+      </tr>
+      <tr>
+        <td><strong>Б6</strong><br><span style="font-size:.8rem;color:var(--text-muted)">Return Logistics</span></td>
+        <td>Маршрут: Bern(p=0.6) → Store, иначе → Hub<br><span class="formula">T<sub>insp</sub>&thinsp;∼&thinsp;Exp(μ=10 мин)</span></td>
+        <td>Исправен → <em>restock</em> (инвентарь++);<br>критич. брак → утилизация</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout" style="margin:16px 0 32px">
+    <strong>Межблочные сигналы в реализации (Go):</strong> Сигналы передаются через буферизованные каналы <code>chan Order</code>. Очередь склада — канал с ёмкостью <code>Q_max = 50</code>, естественно блокируя поступление при переполнении. Каждый курьер — горутина-воркер, ожидающая заказ из общего staging-канала. Возвраты маршрутизируются через <code>returnQueue</code> по результату Бернулли.
+  </div>
+
+  <h3 id="s1-bounds">1.2 Описание системы</h3>
+
+  <div class="bounds-grid">
+    <div class="bounds-card io">
+      <h4>📥 Вход системы</h4>
+      <ul>
+        <li>Клиентская заявка: список SKU товаров</li>
+        <li>Адрес доставки (узел карты города)</li>
+        <li>Временное окно и приоритет (standard / express / same-day)</li>
+      </ul>
+    </div>
+    <div class="bounds-card io">
+      <h4>📤 Выход системы</h4>
+      <ul>
+        <li><span class="status delivered">✓ DELIVERED</span> — успешная доставка клиенту</li>
+        <li><span class="status returned">↩ RESTOCKED</span> — товар возвращён и принят обратно</li>
+        <li><span class="status cancelled">✗ CANCELLED</span> — заказ отменён</li>
+      </ul>
+    </div>
+    <div class="bounds-card in">
+      <h4>✅ Включено в модель</h4>
+      <ul>
+        <li>Генерация заказов с суточной неравномерностью</li>
+        <li>Диспетчеризация по инвентарю и расстоянию</li>
+        <li>Сборка и упаковка заказа на складе (с очередью)</li>
+        <li>Движение курьеров по топологии города</li>
+        <li>Взаимодействие с клиентом (принят / отказ / не дома)</li>
+        <li>Обратная логистика: возврат в магазин или хаб</li>
+        <li>Хаотичные события: поломки курьеров, пробки, дефекты</li>
+      </ul>
+    </div>
+    <div class="bounds-card out">
+      <h4>❌ Исключено из модели</h4>
+      <ul>
+        <li>Платёжная обработка (предоплата мгновенная)</li>
+        <li>Маркетинг и ценообразование</li>
+        <li>Пополнение склада от поставщиков</li>
+        <li>HR-процессы магазинов</li>
+        <li>Межгородская логистика</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ── COMPONENTS ── -->
+  <h3 id="s1-components">Основные компоненты</h3>
+  <table>
+    <thead>
+      <tr><th>Компонент</th><th>Тип</th><th>Роль в системе</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>OrderGenerator</strong></td>
+        <td><span class="tag process">Процесс</span></td>
+        <td>Генерирует заявки по пуассоновскому закону с переменной интенсивностью λ(t)</td>
+      </tr>
+      <tr>
+        <td><strong>Dispatcher</strong></td>
+        <td><span class="tag resource">Ресурс / логика</span></td>
+        <td>Маршрутизирует каждый заказ в оптимальный магазин по score = w₁/dist + w₂·avail</td>
+      </tr>
+      <tr>
+        <td><strong>Store [1..N]</strong></td>
+        <td><span class="tag resource">Ресурс с очередью</span></td>
+        <td>Хранит инвентарь, собирает заказы параллельно (N сборочных слотов), буферизирует очередь до Q_max</td>
+      </tr>
+      <tr>
+        <td><strong>Courier [1..M]</strong></td>
+        <td><span class="tag resource">Ресурс</span></td>
+        <td>Забирает собранный заказ, доставляет клиенту, может сломаться или везти возврат обратно</td>
+      </tr>
+      <tr>
+        <td><strong>Customer</strong></td>
+        <td><span class="tag passive">Пассивный агент</span></td>
+        <td>Принимает или отклоняет доставку; вероятность отказа растёт с задержкой</td>
+      </tr>
+      <tr>
+        <td><strong>SortingHub</strong></td>
+        <td><span class="tag resource">Ресурс</span></td>
+        <td>Принимает ~40% возвратов, проводит инспекцию и перераспределяет по магазинам</td>
+      </tr>
+      <tr>
+        <td><strong>StatsCollector</strong></td>
+        <td><span class="tag monitor">Монитор</span></td>
+        <td>Потокобезопасно собирает метрики: времена, загрузки, длины очередей</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ── BLOCK SCHEME SVG ── -->
+  <h3 id="s1-blockscheme">Блок-схема системы</h3>
+  <div class="diagram-wrap">
+    <svg viewBox="0 0 820 540" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI',system-ui,sans-serif">
+      <defs>
+        <marker id="ah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#5b8af7"/>
+        </marker>
+        <marker id="ah-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#3ecf8e"/>
+        </marker>
+        <marker id="ah-red" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#f87171"/>
+        </marker>
+        <marker id="ah-yellow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#fbbf24"/>
+        </marker>
+      </defs>
+
+      <!-- bg -->
+      <rect width="820" height="540" fill="#1a1d27" rx="10"/>
+
+      <!-- ── NODE: Customer ── -->
+      <ellipse cx="100" cy="80" rx="72" ry="30" fill="#151824" stroke="#5b8af7" stroke-width="1.5"/>
+      <text x="100" y="75" text-anchor="middle" fill="#7ecaff" font-size="12" font-weight="600">👤 Клиент</text>
+      <text x="100" y="92" text-anchor="middle" fill="#7a8099" font-size="10">заявка</text>
+
+      <!-- ── NODE: OrderGenerator ── -->
+      <rect x="196" y="52" width="150" height="56" rx="8" fill="#151824" stroke="#5b8af7" stroke-width="1.5"/>
+      <text x="271" y="75" text-anchor="middle" fill="#7ecaff" font-size="12" font-weight="600">Order Generator</text>
+      <text x="271" y="91" text-anchor="middle" fill="#7a8099" font-size="10">Пуассон · λ(t)</text>
+      <text x="271" y="103" text-anchor="middle" fill="#7a8099" font-size="10">τ ~ Exp(λ)</text>
+
+      <!-- Customer → Generator -->
+      <line x1="172" y1="80" x2="194" y2="80" stroke="#5b8af7" stroke-width="1.5" marker-end="url(#ah)"/>
+
+      <!-- ── NODE: Dispatcher ── -->
+      <polygon points="430,52 530,80 430,108 330,80" fill="#151824" stroke="#fbbf24" stroke-width="1.5"/>
+      <text x="430" y="76" text-anchor="middle" fill="#fbbf24" font-size="12" font-weight="600">Dispatcher</text>
+      <text x="430" y="92" text-anchor="middle" fill="#7a8099" font-size="10">score = w₁/dist + w₂·avail</text>
+
+      <!-- Generator → Dispatcher -->
+      <line x1="346" y1="80" x2="328" y2="80" stroke="#5b8af7" stroke-width="1.5" marker-end="url(#ah)"/>
+
+      <!-- ── STORES ── -->
+      <!-- Store 1 -->
+      <rect x="560" y="22" width="140" height="52" rx="8" fill="#151824" stroke="#3ecf8e" stroke-width="1.5"/>
+      <text x="630" y="44" text-anchor="middle" fill="#3ecf8e" font-size="12" font-weight="600">🏪 Store 1</text>
+      <text x="630" y="60" text-anchor="middle" fill="#7a8099" font-size="10">Сборка · N(15, 4) мин</text>
+      <!-- Store 2 -->
+      <rect x="560" y="92" width="140" height="52" rx="8" fill="#151824" stroke="#3ecf8e" stroke-width="1.5"/>
+      <text x="630" y="114" text-anchor="middle" fill="#3ecf8e" font-size="12" font-weight="600">🏪 Store 2</text>
+      <text x="630" y="130" text-anchor="middle" fill="#7a8099" font-size="10">Очередь ≤ Q_max</text>
+      <!-- Store N -->
+      <rect x="560" y="162" width="140" height="52" rx="8" fill="#151824" stroke="#3ecf8e" stroke-width="1.5" stroke-dasharray="5,3"/>
+      <text x="630" y="184" text-anchor="middle" fill="#3ecf8e" font-size="12" font-weight="600">🏪 Store N</text>
+      <text x="630" y="200" text-anchor="middle" fill="#7a8099" font-size="10">...</text>
+
+      <!-- Dispatcher → Stores -->
+      <line x1="530" y1="68" x2="558" y2="48" stroke="#3ecf8e" stroke-width="1.4" marker-end="url(#ah-green)"/>
+      <line x1="530" y1="80" x2="558" y2="118" stroke="#3ecf8e" stroke-width="1.4" marker-end="url(#ah-green)"/>
+      <line x1="530" y1="88" x2="558" y2="178" stroke="#3ecf8e" stroke-width="1.4" stroke-dasharray="5,3" marker-end="url(#ah-green)"/>
+      <text x="538" y="58" fill="#7a8099" font-size="9">назначить</text>
+
+      <!-- ── COURIER POOL ── -->
+      <rect x="196" y="255" width="160" height="62" rx="8" fill="#151824" stroke="#7ecaff" stroke-width="1.5"/>
+      <text x="276" y="278" text-anchor="middle" fill="#7ecaff" font-size="12" font-weight="600">🚴 Courier Pool</text>
+      <text x="276" y="294" text-anchor="middle" fill="#7a8099" font-size="10">M горутин-воркеров</text>
+      <text x="276" y="308" text-anchor="middle" fill="#7a8099" font-size="10">LN(0, 0.35) · поломки</text>
+
+      <!-- Stores → Courier (staging) -->
+      <path d="M 630 74 Q 620 240 360 270" fill="none" stroke="#7ecaff" stroke-width="1.4" marker-end="url(#ah)"/>
+      <path d="M 630 144 Q 610 240 360 278" fill="none" stroke="#7ecaff" stroke-width="1.4" marker-end="url(#ah)"/>
+      <text x="555" y="230" fill="#7a8099" font-size="9" text-anchor="middle">собран → staging</text>
+
+      <!-- ── CUSTOMER DELIVERY ── -->
+      <polygon points="276,380 336,408 276,436 216,408" fill="#151824" stroke="#fbbf24" stroke-width="1.5"/>
+      <text x="276" y="404" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="600">Клиент</text>
+      <text x="276" y="420" text-anchor="middle" fill="#7a8099" font-size="10">принять?</text>
+
+      <!-- Courier → Customer -->
+      <line x1="276" y1="317" x2="276" y2="378" stroke="#7ecaff" stroke-width="1.5" marker-end="url(#ah)"/>
+      <text x="295" y="355" fill="#7a8099" font-size="9">T_travel</text>
+
+      <!-- ── DELIVERED ── -->
+      <ellipse cx="420" cy="408" rx="72" ry="26" fill="#0f2820" stroke="#3ecf8e" stroke-width="1.5"/>
+      <text x="420" y="404" text-anchor="middle" fill="#3ecf8e" font-size="12" font-weight="600">✓ DELIVERED</text>
+      <text x="420" y="420" text-anchor="middle" fill="#3ecf8e" font-size="10">p = 1 − p_ret</text>
+
+      <!-- Customer → Delivered -->
+      <line x1="336" y1="408" x2="346" y2="408" stroke="#3ecf8e" stroke-width="1.5" marker-end="url(#ah-green)"/>
+
+      <!-- ── RETURN INITIATED ── -->
+      <rect x="186" y="475" width="180" height="44" rx="8" fill="#2a1a0f" stroke="#fbbf24" stroke-width="1.5"/>
+      <text x="276" y="494" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="600">↩ Обратная логистика</text>
+      <text x="276" y="510" text-anchor="middle" fill="#7a8099" font-size="10">RETURN_INITIATED</text>
+
+      <!-- Customer → Return -->
+      <line x1="276" y1="436" x2="276" y2="473" stroke="#f87171" stroke-width="1.5" marker-end="url(#ah-red)"/>
+      <text x="295" y="458" fill="#f87171" font-size="9">p_ret</text>
+
+      <!-- ── ROUTE DECISION ── -->
+      <polygon points="560,475 630,497 560,519 490,497" fill="#151824" stroke="#c084fc" stroke-width="1.5"/>
+      <text x="560" y="494" text-anchor="middle" fill="#c084fc" font-size="10" font-weight="600">Маршрут</text>
+      <text x="560" y="509" text-anchor="middle" fill="#7a8099" font-size="9">возврата</text>
+
+      <!-- Return → Route decision -->
+      <line x1="366" y1="497" x2="488" y2="497" stroke="#fbbf24" stroke-width="1.4" marker-end="url(#ah-yellow)"/>
+
+      <!-- ── SORTING HUB ── -->
+      <rect x="650" y="462" width="148" height="50" rx="8" fill="#151824" stroke="#7ecaff" stroke-width="1.5"/>
+      <text x="724" y="482" text-anchor="middle" fill="#7ecaff" font-size="11" font-weight="600">🏭 Sorting Hub</text>
+      <text x="724" y="498" text-anchor="middle" fill="#7a8099" font-size="10">Инспекция · Exp(10мин)</text>
+      <text x="724" y="510" text-anchor="middle" fill="#7a8099" font-size="9">P = 0.4</text>
+
+      <!-- Route → Hub -->
+      <line x1="630" y1="497" x2="648" y2="487" stroke="#7ecaff" stroke-width="1.4" marker-end="url(#ah)"/>
+
+      <!-- Route → Store (back) -->
+      <path d="M 560 475 Q 560 400 630 380 Q 720 360 760 280 Q 780 240 720 200 Q 700 190 700 188" fill="none" stroke="#3ecf8e" stroke-width="1.3" stroke-dasharray="5,3" marker-end="url(#ah-green)"/>
+      <text x="690" y="330" fill="#7a8099" font-size="9">P = 0.6 → Store</text>
+
+      <!-- LEGEND -->
+      <rect x="14" y="460" width="160" height="64" rx="6" fill="#151824" stroke="#2e3450" stroke-width="1"/>
+      <text x="24" y="478" fill="#7a8099" font-size="10" font-weight="600">ЛЕГЕНДА</text>
+      <line x1="24" y1="490" x2="44" y2="490" stroke="#5b8af7" stroke-width="1.5" marker-end="url(#ah)"/>
+      <text x="50" y="494" fill="#7a8099" font-size="9">прямой поток</text>
+      <line x1="24" y1="507" x2="44" y2="507" stroke="#f87171" stroke-width="1.5" marker-end="url(#ah-red)"/>
+      <text x="50" y="511" fill="#7a8099" font-size="9">инициация возврата</text>
+      <line x1="24" y1="522" x2="44" y2="522" stroke="#3ecf8e" stroke-width="1.3" stroke-dasharray="5,3" marker-end="url(#ah-green)"/>
+      <text x="50" y="526" fill="#7a8099" font-size="9">обратный поток</text>
+    </svg>
+    <p class="diagram-caption">Рис. 1 — Блок-схема системы: прямой и обратный потоки</p>
+  </div>
+
+  <!-- ── DFD ── -->
+  <h3 id="s1-dfd">Диаграмма потоков данных и материалов</h3>
+  <div class="diagram-wrap">
+    <svg viewBox="0 0 820 280" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI',system-ui,sans-serif">
+      <defs>
+        <marker id="dfd-arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#5b8af7"/>
+        </marker>
+        <marker id="dfd-ret" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#fbbf24"/>
+        </marker>
+        <marker id="dfd-info" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#c084fc"/>
+        </marker>
+      </defs>
+      <rect width="820" height="280" fill="#1a1d27" rx="10"/>
+
+      <!-- FORWARD FLOW LABEL -->
+      <text x="20" y="30" fill="#7a8099" font-size="11" font-weight="600" text-transform="uppercase">ПРЯМОЙ ПОТОК (товар + информация)</text>
+      <!-- States row 1 -->
+      <g>
+        <rect x="20" y="44" width="106" height="36" rx="6" fill="#151824" stroke="#5b8af7" stroke-width="1.4"/>
+        <text x="73" y="60" text-anchor="middle" fill="#7ecaff" font-size="10" font-weight="600">CREATED</text>
+        <text x="73" y="74" text-anchor="middle" fill="#7a8099" font-size="9">заявка принята</text>
+      </g>
+      <g>
+        <rect x="150" y="44" width="106" height="36" rx="6" fill="#151824" stroke="#5b8af7" stroke-width="1.4"/>
+        <text x="203" y="60" text-anchor="middle" fill="#7ecaff" font-size="10" font-weight="600">DISPATCHED</text>
+        <text x="203" y="74" text-anchor="middle" fill="#7a8099" font-size="9">магазин назначен</text>
+      </g>
+      <g>
+        <rect x="280" y="44" width="106" height="36" rx="6" fill="#151824" stroke="#5b8af7" stroke-width="1.4"/>
+        <text x="333" y="60" text-anchor="middle" fill="#7ecaff" font-size="10" font-weight="600">ASSEMBLING</text>
+        <text x="333" y="74" text-anchor="middle" fill="#7a8099" font-size="9">сборка на складе</text>
+      </g>
+      <g>
+        <rect x="410" y="44" width="112" height="36" rx="6" fill="#151824" stroke="#5b8af7" stroke-width="1.4"/>
+        <text x="466" y="60" text-anchor="middle" fill="#7ecaff" font-size="10" font-weight="600">READY_PICKUP</text>
+        <text x="466" y="74" text-anchor="middle" fill="#7a8099" font-size="9">ожидает курьера</text>
+      </g>
+      <g>
+        <rect x="546" y="44" width="106" height="36" rx="6" fill="#151824" stroke="#5b8af7" stroke-width="1.4"/>
+        <text x="599" y="60" text-anchor="middle" fill="#7ecaff" font-size="10" font-weight="600">IN_TRANSIT</text>
+        <text x="599" y="74" text-anchor="middle" fill="#7a8099" font-size="9">курьер в пути</text>
+      </g>
+      <g>
+        <rect x="676" y="44" width="106" height="36" rx="6" fill="#0f2820" stroke="#3ecf8e" stroke-width="1.5"/>
+        <text x="729" y="60" text-anchor="middle" fill="#3ecf8e" font-size="10" font-weight="600">DELIVERED</text>
+        <text x="729" y="74" text-anchor="middle" fill="#3ecf8e" font-size="9">✓ успех</text>
+      </g>
+      <!-- arrows fwd -->
+      <line x1="126" y1="62" x2="148" y2="62" stroke="#5b8af7" stroke-width="1.4" marker-end="url(#dfd-arrow)"/>
+      <line x1="256" y1="62" x2="278" y2="62" stroke="#5b8af7" stroke-width="1.4" marker-end="url(#dfd-arrow)"/>
+      <line x1="386" y1="62" x2="408" y2="62" stroke="#5b8af7" stroke-width="1.4" marker-end="url(#dfd-arrow)"/>
+      <line x1="522" y1="62" x2="544" y2="62" stroke="#5b8af7" stroke-width="1.4" marker-end="url(#dfd-arrow)"/>
+      <line x1="652" y1="62" x2="674" y2="62" stroke="#5b8af7" stroke-width="1.4" marker-end="url(#dfd-arrow)"/>
+
+      <!-- RETURN FLOW LABEL -->
+      <text x="20" y="138" fill="#7a8099" font-size="11" font-weight="600">ОБРАТНЫЙ ПОТОК (возврат товара)</text>
+      <!-- Return states -->
+      <g>
+        <rect x="150" y="154" width="120" height="36" rx="6" fill="#2a1a0f" stroke="#fbbf24" stroke-width="1.4"/>
+        <text x="210" y="170" text-anchor="middle" fill="#fbbf24" font-size="10" font-weight="600">RETURN_INIT</text>
+        <text x="210" y="184" text-anchor="middle" fill="#7a8099" font-size="9">отказ / брак</text>
+      </g>
+      <g>
+        <rect x="310" y="154" width="120" height="36" rx="6" fill="#2a1a0f" stroke="#fbbf24" stroke-width="1.4"/>
+        <text x="370" y="170" text-anchor="middle" fill="#fbbf24" font-size="10" font-weight="600">RETURNING</text>
+        <text x="370" y="184" text-anchor="middle" fill="#7a8099" font-size="9">курьер везёт назад</text>
+      </g>
+      <g>
+        <rect x="470" y="154" width="120" height="36" rx="6" fill="#151824" stroke="#7ecaff" stroke-width="1.4"/>
+        <text x="530" y="170" text-anchor="middle" fill="#7ecaff" font-size="10" font-weight="600">INSPECTING</text>
+        <text x="530" y="184" text-anchor="middle" fill="#7a8099" font-size="9">инспекция хаб/склад</text>
+      </g>
+      <g>
+        <rect x="630" y="154" width="110" height="36" rx="6" fill="#0f2820" stroke="#3ecf8e" stroke-width="1.5"/>
+        <text x="685" y="170" text-anchor="middle" fill="#3ecf8e" font-size="10" font-weight="600">RESTOCKED</text>
+        <text x="685" y="184" text-anchor="middle" fill="#3ecf8e" font-size="9">↩ инвентарь +1</text>
+      </g>
+      <!-- from IN_TRANSIT branch down -->
+      <path d="M 599 80 Q 599 95 480 95 Q 380 95 350 155" fill="none" stroke="#fbbf24" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#dfd-ret)"/>
+      <text x="505" y="92" fill="#7a8099" font-size="9">p_ret</text>
+      <!-- return arrows -->
+      <line x1="270" y1="172" x2="308" y2="172" stroke="#fbbf24" stroke-width="1.4" marker-end="url(#dfd-ret)"/>
+      <line x1="430" y1="172" x2="468" y2="172" stroke="#fbbf24" stroke-width="1.4" marker-end="url(#dfd-ret)"/>
+      <line x1="590" y1="172" x2="628" y2="172" stroke="#fbbf24" stroke-width="1.4" marker-end="url(#dfd-ret)"/>
+
+      <!-- INFO FLOW LABEL -->
+      <text x="20" y="232" fill="#7a8099" font-size="11" font-weight="600">ИНФОРМАЦИОННЫЙ ПОТОК (StatusLog → Метрики)</text>
+      <rect x="20" y="248" width="120" height="26" rx="5" fill="#151824" stroke="#c084fc" stroke-width="1.2"/>
+      <text x="80" y="265" text-anchor="middle" fill="#c084fc" font-size="10">StatusLog</text>
+      <line x1="140" y1="261" x2="168" y2="261" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="3,2" marker-end="url(#dfd-info)"/>
+      <rect x="170" y="248" width="130" height="26" rx="5" fill="#151824" stroke="#c084fc" stroke-width="1.2"/>
+      <text x="235" y="265" text-anchor="middle" fill="#c084fc" font-size="10">StatsCollector</text>
+      <line x1="300" y1="261" x2="328" y2="261" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="3,2" marker-end="url(#dfd-info)"/>
+      <rect x="330" y="248" width="240" height="26" rx="5" fill="#151824" stroke="#c084fc" stroke-width="1.2"/>
+      <text x="450" y="265" text-anchor="middle" fill="#c084fc" font-size="10">📊 AvgDeliveryTime · Utilization · QueueLen</text>
+    </svg>
+    <p class="diagram-caption">Рис. 2 — Диаграмма потоков: прямой поток товара, обратная логистика, информационный поток</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SECTION 2 — PROCESSES
+══════════════════════════════════════════ -->
+<div class="section" id="s2">
+  <h2 class="section-title"><span class="num">2</span> Основные процессы</h2>
+
+  <!-- PROCESS 1 -->
+  <div class="process-block">
+    <div class="process-header">
+      <span class="process-num">П1</span>
+      <span class="process-title">Генерация заказов &mdash; OrderGenerator</span>
+    </div>
+    <div class="process-body">
+      <div class="io-row">
+        <div class="io-cell in-cell">
+          <div class="io-cell-label">📥 Вход</div>
+          <div class="io-cell-content">Модельное время <code>t</code>, параметр интенсивности <code>λ(t)</code></div>
+        </div>
+        <div class="io-cell proc-cell">
+          <div class="io-cell-label">⚙️ Процесс</div>
+          <div class="io-cell-content">Генерация интервала <code>τ&nbsp;~&nbsp;Exp(λ(t))</code>. <code>λ(t)</code> переключается по суточному расписанию (ночь / утро / пик / вечер).</div>
+        </div>
+        <div class="io-cell out-cell">
+          <div class="io-cell-label">📤 Выход</div>
+          <div class="io-cell-content">Объект <code>Order{ID, Items[], AddressID, Priority, CreatedAt}</code> → канал диспетчера</div>
+        </div>
+      </div>
+<pre class="algo">loop:
+  hour := simTime.Hour()
+  λ := selectLambda(hour)      // 2 / 8 / 15 / 6 ord/h
+  τ := -ln(rand()) / λ         // τ ~ Exp(λ)
+  sleep(τ)
+  order := newOrder(nextID++, randomItems(), randomAddress(), ...)
+  dispatcherChan &lt;- order      // неблокирующий push
+goto loop</pre>
+    </div>
+  </div>
+
+  <!-- PROCESS 2 -->
+  <div class="process-block">
+    <div class="process-header">
+      <span class="process-num">П2</span>
+      <span class="process-title">Диспетчеризация &mdash; Dispatcher</span>
+    </div>
+    <div class="process-body">
+      <div class="io-row">
+        <div class="io-cell in-cell">
+          <div class="io-cell-label">📥 Вход</div>
+          <div class="io-cell-content">Новый <code>Order</code>, таблица инвентаря магазинов, матрица расстояний</div>
+        </div>
+        <div class="io-cell proc-cell">
+          <div class="io-cell-label">⚙️ Процесс</div>
+          <div class="io-cell-content">Фильтрация по наличию товаров, ранжирование по <span class="formula">score<sub>i</sub> = w₁/dist<sub>i</sub> + w₂·avail<sub>i</sub></span>, выбор лучшего.</div>
+        </div>
+        <div class="io-cell out-cell">
+          <div class="io-cell-label">📤 Выход</div>
+          <div class="io-cell-content"><code>order.StoreID</code> заполнен; заказ поставлен в очередь <code>store[i].assemblyQueue</code></div>
+        </div>
+      </div>
+<pre class="algo">eligible := []
+for each store s:
+    if s.hasItems(order.Items):
+        score = w1 / dist(order.Address, s) + w2 * s.availRatio()
+        eligible.append({s, score})
+if len(eligible) == 0:
+    order.setStatus(CANCELLED, "out-of-stock")
+    return
+best := argmax(eligible, score)
+order.StoreID = best.ID
+best.assemblyQueue &lt;- order   // buffered channel (cap = Q_max)</pre>
+    </div>
+  </div>
+
+  <!-- PROCESS 3 -->
+  <div class="process-block">
+    <div class="process-header">
+      <span class="process-num">П3</span>
+      <span class="process-title">Сборка заказа &mdash; Store Assembly</span>
+    </div>
+    <div class="process-body">
+      <div class="io-row">
+        <div class="io-cell in-cell">
+          <div class="io-cell-label">📥 Вход</div>
+          <div class="io-cell-content"><code>Order</code> из очереди, свободный сборочный слот (семафор)</div>
+        </div>
+        <div class="io-cell proc-cell">
+          <div class="io-cell-label">⚙️ Процесс</div>
+          <div class="io-cell-content">Время <code>T<sub>asm</sub>&nbsp;~&nbsp;N(15,&nbsp;4)&nbsp;мин</code>, масштабируется на вес. Контроль качества: <code>Bern(p<sub>defect</sub>)</code>.</div>
+        </div>
+        <div class="io-cell out-cell">
+          <div class="io-cell-label">📤 Выход</div>
+          <div class="io-cell-content">Заказ в статусе <code>READY_FOR_PICKUP</code> → staging area курьерского пула</div>
+        </div>
+      </div>
+<pre class="algo">order := &lt;-assemblyQueue
+slotSemaphore.Acquire()
+  store.reserveItems(order.Items)
+  order.setStatus(ASSEMBLING)
+  T_asm = max(1, Normal(μ=15, σ=4)) * weightFactor(order)
+  sleep(T_asm)
+  if Bernoulli(p_defect):          // p_defect = 0.02
+      order.setStatus(RETURN_INITIATED, "defect at packing")
+  else:
+      order.setStatus(READY_FOR_PICKUP)
+      stagingArea &lt;- order
+slotSemaphore.Release()</pre>
+    </div>
+  </div>
+
+  <!-- PROCESS 4 -->
+  <div class="process-block">
+    <div class="process-header">
+      <span class="process-num">П4</span>
+      <span class="process-title">Доставка курьером &mdash; Courier Worker</span>
+    </div>
+    <div class="process-body">
+      <div class="io-row">
+        <div class="io-cell in-cell">
+          <div class="io-cell-label">📥 Вход</div>
+          <div class="io-cell-content">Свободный курьер, <code>Order</code> в staging area</div>
+        </div>
+        <div class="io-cell proc-cell">
+          <div class="io-cell-label">⚙️ Процесс</div>
+          <div class="io-cell-content"><span class="formula">T<sub>travel</sub> = dist / v × LN(0, σ<sub>tr</sub>)</span>. В пути: случайные поломки по Пуассону, ремонт <code>Exp(30мин)</code>.</div>
+        </div>
+        <div class="io-cell out-cell">
+          <div class="io-cell-label">📤 Выход</div>
+          <div class="io-cell-content">Курьер прибывает к клиенту → передача в Процесс 5</div>
+        </div>
+      </div>
+<pre class="algo">order := &lt;-stagingArea
+courier.CurrentOrder = order
+order.setStatus(IN_TRANSIT)
+dist := map.Distance(store, customer)
+trafficK := LogNormal(μ=0, σ=0.35)
+T_travel := dist / courier.Speed * trafficK
+
+// поломки прерывают движение
+remaining := T_travel
+for remaining &gt; 0:
+    dt := min(remaining, checkInterval)
+    sleep(dt)
+    remaining -= dt
+    if Poisson_event(λ_breakdown, dt):
+        order.setStatus(FAILED_ATTEMPT, "breakdown")
+        T_repair := Exponential(μ=30)
+        sleep(T_repair)
+
+deliver(courier, order)   // → Процесс 5</pre>
+    </div>
+  </div>
+
+  <!-- PROCESS 5 -->
+  <div class="process-block">
+    <div class="process-header">
+      <span class="process-num">П5</span>
+      <span class="process-title">Взаимодействие с клиентом</span>
+    </div>
+    <div class="process-body">
+      <div class="io-row">
+        <div class="io-cell in-cell">
+          <div class="io-cell-label">📥 Вход</div>
+          <div class="io-cell-content">Курьер прибыл к клиенту, фактическое и ожидаемое время доставки</div>
+        </div>
+        <div class="io-cell proc-cell">
+          <div class="io-cell-label">⚙️ Процесс</div>
+          <div class="io-cell-content">Три исхода: принял / не дома (повтор до 2 раз) / отказ. <span class="formula">p<sub>ret</sub>(delay) = p₀ · (1 + α · delay_ratio)</span></div>
+        </div>
+        <div class="io-cell out-cell">
+          <div class="io-cell-label">📤 Выход</div>
+          <div class="io-cell-content"><code>DELIVERED</code> или <code>RETURN_INITIATED</code> или <code>CANCELLED</code></div>
+        </div>
+      </div>
+<pre class="algo">for attempt := 1; attempt &lt;= 2; attempt++:
+    if Bernoulli(p_not_home = 0.15):
+        sleep(Uniform(60, 240))    // ждём, когда освободится
+        continue                   // повторная попытка
+    
+    delay = actual_time - expected_time
+    delay_ratio = max(0, delay / expected_time)
+    p_ret = p_base * (1 + α * delay_ratio)   // α = 0.5
+    
+    if Bernoulli(p_ret):
+        reason := pickReason()     // Refused | Defective | WrongItem | Late
+        order.ReturnReason = reason
+        order.setStatus(RETURN_INITIATED)
+        return
+    else:
+        order.setStatus(DELIVERED)
+        stats.RecordDelivery(now - order.CreatedAt)
+        return
+
+order.setStatus(CANCELLED, "max attempts exceeded")</pre>
+    </div>
+  </div>
+
+  <!-- PROCESS 6 -->
+  <div class="process-block">
+    <div class="process-header">
+      <span class="process-num">П6</span>
+      <span class="process-title">Обратная логистика &mdash; Return Processing</span>
+    </div>
+    <div class="process-body">
+      <div class="io-row">
+        <div class="io-cell in-cell">
+          <div class="io-cell-label">📥 Вход</div>
+          <div class="io-cell-content"><code>Order</code> в статусе <code>RETURN_INITIATED</code>, причина возврата, состояние товара</div>
+        </div>
+        <div class="io-cell proc-cell">
+          <div class="io-cell-label">⚙️ Процесс</div>
+          <div class="io-cell-content">Маршрутизация: 60% → исходный магазин, 40% → сортировочный хаб. Инспекция <code>Exp(10мин)</code>.</div>
+        </div>
+        <div class="io-cell out-cell">
+          <div class="io-cell-label">📤 Выход</div>
+          <div class="io-cell-content">Инвентарь пополнен (<code>RESTOCKED</code>) или товар утилизирован</div>
+        </div>
+      </div>
+<pre class="algo">order.setStatus(RETURNING)
+dest := sortingHub
+if Bernoulli(0.6):
+    dest = order.OriginalStore   // обратно в родной магазин
+
+T_return := dist(customer, dest) / courier.Speed * LogNormal(0, 0.35)
+sleep(T_return)
+
+// Инспекция
+T_inspect := Exponential(μ=10)
+sleep(T_inspect)
+
+if isCriticalDefect(order.ReturnReason):
+    dispose(order)              // утилизация
+else:
+    dest.Inventory[SKU]++       // пополнить склад
+    order.setStatus(RESTOCKED)
+
+stats.RecordReturn(now - order.ReturnInitiatedAt)</pre>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SECTION 3 — DISTRIBUTIONS
+══════════════════════════════════════════ -->
+<div class="section" id="s3">
+  <h2 class="section-title"><span class="num">3</span> Используемые распределения</h2>
+
+  <p>Для каждого стохастического процесса подобрано распределение, соответствующее физической природе явления:</p>
+
+  <div class="dist-grid">
+    <div class="dist-card">
+      <div class="dist-name">Пуассоновский процесс / Экспоненциальное</div>
+      <div class="dist-use">Применение: поступление заказов, поломки курьеров</div>
+      <div class="dist-params">τ ~ Exp(λ),  P(k, λ) = λᵏe⁻λ/k!</div>
+      <div class="dist-reason">
+        Заказы — независимые редкие события без памяти (марковское свойство). Стандарт теории очередей (M/M/c). Подтверждено практикой e-commerce: входящий поток хорошо аппроксимируется пуассоновским при горизонте часа.
+      </div>
+    </div>
+    <div class="dist-card">
+      <div class="dist-name">Нормальное N(μ, σ²)</div>
+      <div class="dist-use">Применение: время сборки заказа на складе</div>
+      <div class="dist-params">T_asm ~ N(μ=15 мин, σ=4 мин),  T_asm ≥ 1 мин</div>
+      <div class="dist-reason">
+        Сборка состоит из множества мелких операций (поиск товара, проверка, упаковка). По ЦПТ их сумма → нормальное. Симметрия оправдана: большинство операций выполняется за близкое к среднему время. Левый хвост отрезается (min = 1 мин).
+      </div>
+    </div>
+    <div class="dist-card lognormal">
+      <div class="dist-name">Лог-нормальное LN(μ_ln, σ_ln)</div>
+      <div class="dist-use">Применение: транспортный коэффициент задержки (пробки)</div>
+      <div class="dist-params">K_traffic ~ LN(0, 0.35),  медиана=1, P95≈1.8×</div>
+      <div class="dist-reason">
+        Время движения строго положительно, имеет правый тяжёлый хвост (пробки, ДТП). Произведение независимых случайных задержек на перекрёстках → лог-нормальное (аналог ЦПТ для произведений). Подтверждено исследованиями городского трафика.
+      </div>
+    </div>
+    <div class="dist-card bernoulli">
+      <div class="dist-name">Бернулли Bern(p)</div>
+      <div class="dist-use">Применение: отказ клиента, клиент не дома, брак при сборке</div>
+      <div class="dist-params">
+        p_not_home = 0.15<br>
+        p_ret = p₀·(1 + α·delay_ratio),  p₀=0.08<br>
+        p_defect = 0.02
+      </div>
+      <div class="dist-reason">
+        Бинарный исход неделим. Вероятность отказа нелинейно зависит от задержки: накопление недовольства клиента моделируется мультипликативным множителем. Значение p_not_home = 15% соответствует отраслевой статистике курьерских служб.
+      </div>
+    </div>
+    <div class="dist-card exp">
+      <div class="dist-name">Экспоненциальное Exp(λ)</div>
+      <div class="dist-use">Применение: время ремонта курьера, инспекция возврата</div>
+      <div class="dist-params">T_repair ~ Exp(λ=1/30),  T_inspect ~ Exp(λ=1/10)</div>
+      <div class="dist-reason">
+        Безпамятное распределение: оставшееся время ремонта не зависит от уже прошедшего. Классическая модель времени обслуживания в системах M/M/1. Оправдано, когда исход определяется «первым успешным событием» (нашли запчасть, определили дефект).
+      </div>
+    </div>
+    <div class="dist-card uniform">
+      <div class="dist-name">Равномерное U(a, b)</div>
+      <div class="dist-use">Применение: время ожидания повторной доставки</div>
+      <div class="dist-params">T_wait ~ U(60, 240 мин)</div>
+      <div class="dist-reason">
+        Клиент может освободиться в любой момент 1–4-часового окна с равной вероятностью. Нет данных о предпочтительном времени — принцип недостаточного основания → равномерное.
+      </div>
+    </div>
+  </div>
+
+  <div class="callout warn">
+    <strong>Влияние выбора распределения на точность модели:</strong> Замена лог-нормального распределения трафика на нормальное занизит хвостовые задержки и недооценит количество возвратов по причине <em>LateDelivery</em>. Замена нормального (сборка) на экспоненциальное завысит дисперсию и создаст нереалистично большое число «быстрых» сборок.
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SECTION 4 — PARAMETERS
+══════════════════════════════════════════ -->
+<div class="section" id="s4">
+  <h2 class="section-title"><span class="num">4</span> Параметры модели</h2>
+
+  <h3 id="s4-params">4.1 Входные параметры</h3>
+
+  <h4>Параметры сети и ресурсов</h4>
+  <table>
+    <thead><tr><th>Параметр</th><th>Обозн.</th><th>Значение</th><th>Источник</th></tr></thead>
+    <tbody>
+      <tr><td>Количество магазинов</td><td><code>N_stores</code></td><td>4</td><td>Типичный малый маркетплейс в городе-миллионнике</td></tr>
+      <tr><td>Количество курьеров</td><td><code>N_couriers</code></td><td>15</td><td>Норма ~1 курьер на 10–15 заказов/час в пик [Delivery Club, 2023]</td></tr>
+      <tr><td>Количество сортировочных хабов</td><td><code>N_hubs</code></td><td>1</td><td>Один центральный хаб для города</td></tr>
+      <tr><td>Ёмкость очереди склада</td><td><code>Q_max</code></td><td>50 заказов</td><td>Физический лимит staging-зоны, типичный склад ~200 м²</td></tr>
+    </tbody>
+  </table>
+
+  <h4>Параметры потока заказов</h4>
+  <table>
+    <thead><tr><th>Период суток</th><th>Время</th><th>λ (заказов/час)</th><th>Обоснование</th></tr></thead>
+    <tbody>
+      <tr><td>Ночь / ранее утро</td><td>00:00–09:00</td><td>2</td><td>Минимальная активность</td></tr>
+      <tr><td>Утро</td><td>09:00–12:00</td><td>8</td><td>Офисные заказы, начало рабочего дня</td></tr>
+      <tr><td>Обеденный пик</td><td>12:00–14:00</td><td>15</td><td>Максимальная нагрузка [Data Insight, 2024]</td></tr>
+      <tr><td>День</td><td>14:00–19:00</td><td>6</td><td>Умеренная нагрузка</td></tr>
+      <tr><td>Вечерний пик</td><td>19:00–22:00</td><td>15</td><td>Заказы после работы</td></tr>
+      <tr><td>Поздний вечер</td><td>22:00–24:00</td><td>3</td><td>Спад активности</td></tr>
+    </tbody>
+  </table>
+
+  <h4>Параметры логистики и стохастики</h4>
+  <table>
+    <thead><tr><th>Параметр</th><th>Обозн.</th><th>Значение</th><th>Обоснование</th></tr></thead>
+    <tbody>
+      <tr><td>Среднее время сборки</td><td><code>μ_asm</code></td><td>15 мин</td><td>Эмпирические данные для заказа 2–3 SKU</td></tr>
+      <tr><td>СКО времени сборки</td><td><code>σ_asm</code></td><td>4 мин</td><td>±1σ покрывает 68% заказов (11–19 мин)</td></tr>
+      <tr><td>Средняя скорость курьера</td><td><code>v_mean</code></td><td>25 км/ч</td><td>Городская велосипедная/мотокурьерская доставка</td></tr>
+      <tr><td>Параметр трафика (LN)</td><td><code>σ_tr</code></td><td>0.35</td><td>P95 ≈ 1.8× от базового времени (соответствует пробкам)</td></tr>
+      <tr><td>Интенсивность поломок</td><td><code>λ_break</code></td><td>0.1/сутки/курьер</td><td>Плановые нормы ТО курьерского транспорта</td></tr>
+      <tr><td>Среднее время ремонта</td><td><code>μ_repair</code></td><td>30 мин</td><td>Экспертная оценка (замена колеса, дозаправка)</td></tr>
+      <tr><td>P(клиент не дома)</td><td><code>p_absent</code></td><td>0.15</td><td>Отраслевая статистика курьерских служб РФ</td></tr>
+      <tr><td>Базовая P(возврата)</td><td><code>p₀</code></td><td>0.08</td><td>Data Insight: средний returns rate e-commerce РФ ~8% [2024]</td></tr>
+      <tr><td>Коэфф. чувствительности к задержке</td><td><code>α</code></td><td>0.5</td><td>При 2× опоздании: p_ret ≈ 12% (модельная оценка)</td></tr>
+      <tr><td>Доля возвратов в исходный магазин</td><td><code>p_store</code></td><td>0.60</td><td>Для дефектов ближайший склад предпочтительнее хаба</td></tr>
+      <tr><td>Среднее время инспекции возврата</td><td><code>μ_insp</code></td><td>10 мин</td><td>Экспертная оценка операции проверки товара</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="s4-assumptions">4.2 Условия и предположения</h3>
+  <ul class="assumption-list">
+    <li>
+      <span class="asm-icon">🗺️</span>
+      <span class="asm-text">
+        <strong>Граф города дискретизируется в 50 узлов с матрицей расстояний</strong>
+        <span>Упрощает маршрутизацию без потери реализма; расстояния между узлами задаются равномерно на интервале [0.5, 8] км.</span>
+      </span>
+    </li>
+    <li>
+      <span class="asm-icon">🚴</span>
+      <span class="asm-text">
+        <strong>Курьер обслуживает один заказ за раз</strong>
+        <span>Модель «экспресс-доставки» (не batch). Batch-логика — расширение для Lab 2.</span>
+      </span>
+    </li>
+    <li>
+      <span class="asm-icon">📦</span>
+      <span class="asm-text">
+        <strong>Инвентарь задаётся начальными условиями и не пополняется в ходе симуляции</strong>
+        <span>Фокус на логистике «последней мили»; пополнение — отдельная подзадача supply chain.</span>
+      </span>
+    </li>
+    <li>
+      <span class="asm-icon">🏪</span>
+      <span class="asm-text">
+        <strong>Весь заказ берётся из одного магазина</strong>
+        <span>Упрощение первой версии. Реальные маркетплейсы иногда собирают заказ из нескольких узлов (multi-source) — планируется в расширенной модели.</span>
+      </span>
+    </li>
+    <li>
+      <span class="asm-icon">🕐</span>
+      <span class="asm-text">
+        <strong>Время суток влияет на λ(t) и σ_traffic(t), остальные параметры постоянны</strong>
+        <span>Ночная усталость курьеров и прочие суточные эффекты исключены из первой версии.</span>
+      </span>
+    </li>
+    <li>
+      <span class="asm-icon">↩️</span>
+      <span class="asm-text">
+        <strong>Возврат всегда физически выполним — курьер доступен после отказа клиента</strong>
+        <span>Упрощение: курьер не может быть перехвачен другим заказом в момент инициации возврата.</span>
+      </span>
+    </li>
+  </ul>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SECTION 5 — RESULTS
+══════════════════════════════════════════ -->
+<div class="section" id="s5">
+  <h2 class="section-title"><span class="num">5</span> Результаты моделирования</h2>
+
+  <h3 id="s5-expected">5.1 Ожидаемые результаты</h3>
+
+  <h4>Ключевые метрики — базовый сценарий (24 ч)</h4>
+  <div class="metric-grid">
+    <div class="metric-card"><div class="metric-value">45–75</div><div class="metric-label">мин · среднее время доставки</div></div>
+    <div class="metric-card"><div class="metric-value">60–120</div><div class="metric-label">мин · обработка возврата</div></div>
+    <div class="metric-card"><div class="metric-value">55–75%</div><div class="metric-label">утилизация курьеров</div></div>
+    <div class="metric-card"><div class="metric-value">≈87%</div><div class="metric-label">доля успешных доставок</div></div>
+  </div>
+
+  <table>
+    <thead><tr><th>Метрика</th><th>Default</th><th>Peak Load</th><th>Chaos</th><th>Understaffed</th></tr></thead>
+    <tbody>
+      <tr><td>Среднее время доставки, мин</td><td>45–75</td><td>70–120</td><td>80–150</td><td>90–200</td></tr>
+      <tr><td>Утилизация курьеров, %</td><td>55–75</td><td>80–95</td><td>60–85</td><td>90–99</td></tr>
+      <tr><td>Ср. длина очереди склада</td><td>5–15</td><td>20–40</td><td>8–20</td><td>10–25</td></tr>
+      <tr><td>Доля возвратов, %</td><td>8–13</td><td>12–18</td><td>14–22</td><td>15–25</td></tr>
+      <tr><td>Доля успешных доставок, %</td><td>85–90</td><td>78–85</td><td>72–82</td><td>65–75</td></tr>
+    </tbody>
+  </table>
+
+  <h4>Сравниваемые сценарии</h4>
+  <div class="scenario-grid">
+    <div class="scenario-card default">
+      <div class="sc-name">🟦 Default — Базовый</div>
+      <div class="sc-desc">Эталонный сценарий для сравнения</div>
+      <div class="sc-changes">λ_peak = 15 / час · N_couriers = 15 · σ_traffic = 0.35</div>
+    </div>
+    <div class="scenario-card peak">
+      <div class="sc-name">🟨 Peak Load — Пиковая нагрузка</div>
+      <div class="sc-desc">Имитация «11.11» или «Чёрная пятница»</div>
+      <div class="sc-changes">λ_peak × 2.5 → 37.5 / час · N_couriers = 25 (усиление)</div>
+    </div>
+    <div class="scenario-card chaos">
+      <div class="sc-name">🔴 Chaos — Хаотичные сбои</div>
+      <div class="sc-desc">Плохая погода, массовые поломки</div>
+      <div class="sc-changes">λ_breakdown × 5 · σ_traffic × 2 → σ = 0.70</div>
+    </div>
+    <div class="scenario-card under">
+      <div class="sc-name">🟣 Understaffed — Нехватка ресурсов</div>
+      <div class="sc-desc">Нижняя граница кадрового обеспечения</div>
+      <div class="sc-changes">N_couriers = 8 (↓ с 15) · все остальные параметры базовые</div>
+    </div>
+  </div>
+
+  <!-- CHART: Queue profile -->
+  <h4>Ожидаемый суточный профиль очереди склада</h4>
+  <div class="chart-wrap">
+    <div class="chart-title">Длина очереди сборки vs. время суток</div>
+    <svg viewBox="0 0 760 200" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI',system-ui,sans-serif">
+      <!-- axes -->
+      <line x1="50" y1="160" x2="740" y2="160" stroke="#2e3450" stroke-width="1.5"/>
+      <line x1="50" y1="10" x2="50" y2="162" stroke="#2e3450" stroke-width="1.5"/>
+      <!-- y labels -->
+      <text x="40" y="164" text-anchor="end" fill="#7a8099" font-size="10">0</text>
+      <text x="40" y="128" text-anchor="end" fill="#7a8099" font-size="10">10</text>
+      <text x="40" y="96" text-anchor="end" fill="#7a8099" font-size="10">20</text>
+      <text x="40" y="64" text-anchor="end" fill="#7a8099" font-size="10">30</text>
+      <text x="40" y="32" text-anchor="end" fill="#7a8099" font-size="10">40</text>
+      <text x="22" y="90" text-anchor="middle" fill="#7a8099" font-size="10" transform="rotate(-90,22,90)">заказов</text>
+      <!-- grid -->
+      <line x1="50" y1="128" x2="740" y2="128" stroke="#2e3450" stroke-width="0.5" stroke-dasharray="4,3"/>
+      <line x1="50" y1="96" x2="740" y2="96" stroke="#2e3450" stroke-width="0.5" stroke-dasharray="4,3"/>
+      <line x1="50" y1="64" x2="740" y2="64" stroke="#2e3450" stroke-width="0.5" stroke-dasharray="4,3"/>
+      <line x1="50" y1="32" x2="740" y2="32" stroke="#2e3450" stroke-width="0.5" stroke-dasharray="4,3"/>
+      <!-- x labels -->
+      <text x="50"  y="176" text-anchor="middle" fill="#7a8099" font-size="10">0ч</text>
+      <text x="137" y="176" text-anchor="middle" fill="#7a8099" font-size="10">3ч</text>
+      <text x="224" y="176" text-anchor="middle" fill="#7a8099" font-size="10">6ч</text>
+      <text x="311" y="176" text-anchor="middle" fill="#7a8099" font-size="10">9ч</text>
+      <text x="398" y="176" text-anchor="middle" fill="#7a8099" font-size="10">12ч</text>
+      <text x="485" y="176" text-anchor="middle" fill="#7a8099" font-size="10">15ч</text>
+      <text x="572" y="176" text-anchor="middle" fill="#7a8099" font-size="10">18ч</text>
+      <text x="659" y="176" text-anchor="middle" fill="#7a8099" font-size="10">21ч</text>
+      <text x="740" y="176" text-anchor="middle" fill="#7a8099" font-size="10">24ч</text>
+      <!-- Default curve (smooth) -->
+      <polyline
+        points="50,157 137,155 224,152 311,140 340,110 370,85 398,80 427,100 455,118 485,130 520,112 545,90 572,80 600,84 630,108 659,96 690,130 720,148 740,154"
+        fill="none" stroke="#5b8af7" stroke-width="2.5" stroke-linejoin="round"/>
+      <!-- Peak curve -->
+      <polyline
+        points="50,156 137,154 224,150 311,128 340,72 370,42 398,38 427,50 455,80 485,118 520,90 545,58 572,48 600,52 630,68 659,80 690,122 720,145 740,152"
+        fill="none" stroke="#fbbf24" stroke-width="2" stroke-linejoin="round" stroke-dasharray="6,3"/>
+      <!-- fill area default -->
+      <polygon
+        points="50,160 50,157 137,155 224,152 311,140 340,110 370,85 398,80 427,100 455,118 485,130 520,112 545,90 572,80 600,84 630,108 659,96 690,130 720,148 740,154 740,160"
+        fill="#5b8af7" fill-opacity="0.08"/>
+      <!-- legend -->
+      <line x1="560" y1="20" x2="590" y2="20" stroke="#5b8af7" stroke-width="2.5"/>
+      <text x="596" y="24" fill="#7a8099" font-size="10">Default</text>
+      <line x1="560" y1="38" x2="590" y2="38" stroke="#fbbf24" stroke-width="2" stroke-dasharray="6,3"/>
+      <text x="596" y="42" fill="#7a8099" font-size="10">Peak Load</text>
+      <!-- peak labels -->
+      <line x1="398" y1="78" x2="398" y2="160" stroke="#5b8af7" stroke-width="0.8" stroke-dasharray="3,2" opacity="0.5"/>
+      <text x="398" y="74" text-anchor="middle" fill="#5b8af7" font-size="9">▲ пик обед</text>
+      <line x1="572" y1="78" x2="572" y2="160" stroke="#5b8af7" stroke-width="0.8" stroke-dasharray="3,2" opacity="0.5"/>
+      <text x="572" y="74" text-anchor="middle" fill="#5b8af7" font-size="9">▲ веч. пик</text>
+    </svg>
+  </div>
+
+  <!-- ── ANALYSIS ── -->
+  <h3 id="s5-analysis">5.2 Предполагаемые способы анализа результатов</h3>
+
+  <div class="analysis-grid">
+    <div class="analysis-card">
+      <h4>🔍 A. Анализ узких мест</h4>
+      <ul>
+        <li>Сравниваем длины очередей: сборка / курьерский пул / хаб</li>
+        <li>Компонент с максимальной очередью = узкое место</li>
+        <li><strong>Прогноз:</strong> при λ &gt; 12 — склад, при λ &gt; 20 — курьерский пул</li>
+        <li>Загрузка выше 90% = деградация качества обслуживания</li>
+      </ul>
+    </div>
+    <div class="analysis-card">
+      <h4>📈 B. Анализ чувствительности</h4>
+      <ul>
+        <li><code>N_couriers</code> ∈ {8, 12, 15, 20, 25} → влияние на время доставки</li>
+        <li><code>Q_max</code> ∈ {20, 50, 100} → потери при переполнении</li>
+        <li><code>p₀_return</code> ∈ {0.05, 0.10, 0.20} → пропускная способность</li>
+        <li>Один параметр меняется, остальные фиксированы</li>
+      </ul>
+    </div>
+    <div class="analysis-card">
+      <h4>✅ C. Валидация через аналитическую модель</h4>
+      <ul>
+        <li>При постоянной нагрузке: M/M/c (формула Эрланга-C)</li>
+        <li>c = N_couriers, λ = λ_peak, μ = 1 / avg_delivery_time</li>
+        <li>Сравниваем E[W] формулы с E[W] симуляции</li>
+        <li>Допустимое расхождение: ≤ 10%</li>
+      </ul>
+    </div>
+    <div class="analysis-card">
+      <h4>💼 D. Интерпретация в бизнес-терминах</h4>
+      <ul>
+        <li><strong>Время доставки &gt; 90 мин</strong> → добавить курьеров / магазин</li>
+        <li><strong>Утилизация &gt; 90%</strong> → расширить пул до λ/μ</li>
+        <li><strong>Очередь → Q_max</strong> → увеличить мощности сборки</li>
+        <li><strong>Возвраты &gt; 15%</strong> → анализ ReturnReason по категориям</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout success">
+    <strong>Практическая ценность модели:</strong> Результаты позволяют принять решения об оптимальном штате курьеров для каждого часового пояса нагрузки, определить минимально необходимую ёмкость склада и обосновать инвестиции в дополнительный сортировочный хаб при масштабировании.
+  </div>
+</div>
+
+<!-- §4 PRESENTATION NOTE -->
+<div class="section" id="s6" style="margin-bottom:32px">
+  <h2 class="section-title"><span class="num">4</span> Презентация модели</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div class="bounds-card in">
+      <h4>🎯 Что? — Объект моделирования</h4>
+      <p style="font-size:.88rem">Полная цепочка e-commerce доставки: от генерации заявки клиента — через выбор магазина, сборку, курьерскую доставку — до возврата товара с реинтеграцией в инвентарь. Аналог: Ozon / Wildberries «последняя миля».</p>
+    </div>
+    <div class="bounds-card in">
+      <h4>❓ Зачем? — Цель моделирования</h4>
+      <p style="font-size:.88rem">Найти узкие места цепочки поставок, определить оптимальный штат курьеров и ёмкость склада, оценить устойчивость системы при пиковых нагрузках и хаотичных сбоях без затрат на реальный эксперимент.</p>
+    </div>
+    <div class="bounds-card io">
+      <h4>📊 Что ожидается? — Гипотезы</h4>
+      <p style="font-size:.88rem">При λ &gt; 12 зак/ч склад станет узким местом (очередь → Q_max). Добавление 5 курьеров сократит среднее время доставки на ~25%. Сценарий Chaos увеличит долю возвратов с 8% до &gt; 15%.</p>
+    </div>
+    <div class="bounds-card io">
+      <h4>⚙️ Как реализовано?</h4>
+      <p style="font-size:.88rem">Go 1.25: горутина на курьера + горутина на сборочный слот. Очереди — буферизованные каналы (<code>cap = Q_max</code>). Стохастика — <code>math/rand</code>. Сбор метрик — <code>sync.Mutex</code>. CLI: <code>--scenario default|peak|chaos</code>.</p>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <span>Практическая работа №1 · Имитационное моделирование · ИТМО 2026</span>
+  <span>EcomSupplySim · Go 1.25 · Вариант 6</span>
+</div>
+
+</div><!-- .page -->
+</body>
+</html>
