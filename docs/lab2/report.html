@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ПР №2 — EcomSupplySim</title>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #21263a; --border: #2e3450;
+    --accent: #5b8af7; --accent2: #7ecaff; --green: #3ecf8e; --red: #f87171;
+    --yellow: #fbbf24; --text: #d4d8f0; --text-muted: #7a8099;
+    --code-bg: #151824; --radius: 10px;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); line-height: 1.7; }
+  .page { max-width: 1100px; margin: 0 auto; padding: 40px 28px 80px; }
+
+  /* HEADER */
+  .header { padding: 44px 0 36px; border-bottom: 1px solid var(--border); margin-bottom: 40px; }
+  .badge-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+  .badge { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+    padding: 4px 10px; border-radius: 20px;
+    background: var(--surface2); border: 1px solid var(--border); color: var(--accent2); }
+  .badge.green { color: var(--green); border-color: #1f5c40; background: #0f2820; }
+  .badge.yellow { color: var(--yellow); border-color: #5c4b1f; background: #281f0f; }
+  h1 { font-size: 2.2rem; font-weight: 700; line-height: 1.25; color: #eef0ff; }
+  h1 span { color: var(--accent); }
+  .subtitle { margin-top: 10px; color: var(--text-muted); font-size: 1rem; }
+
+  /* TOC */
+  .toc { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 24px 28px; margin-bottom: 48px; }
+  .toc h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .1em; color: var(--text-muted);
+    margin-bottom: 14px; }
+  .toc ol { padding-left: 20px; }
+  .toc li { margin: 5px 0; }
+  .toc a { color: var(--accent2); text-decoration: none; font-size: .93rem; }
+  .toc a:hover { text-decoration: underline; }
+
+  /* SECTIONS */
+  .section { margin-bottom: 56px; }
+  h2.section-title { font-size: 1.5rem; font-weight: 700; color: #eef0ff;
+    padding-bottom: 10px; border-bottom: 1px solid var(--border); margin-bottom: 24px;
+    display: flex; align-items: center; gap: 12px; }
+  h2.section-title .num { background: var(--accent); color: #fff; font-size: .8rem; font-weight: 700;
+    border-radius: 6px; padding: 2px 8px; flex-shrink: 0; }
+  h3 { font-size: 1.1rem; font-weight: 600; color: var(--accent2); margin: 28px 0 12px; }
+  p { margin-bottom: 12px; }
+
+  /* TABLES */
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: .9rem; }
+  th { background: var(--surface2); color: var(--text-muted); font-size: .75rem;
+    text-transform: uppercase; letter-spacing: .07em; padding: 10px 14px;
+    border-bottom: 1px solid var(--border); text-align: left; }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+
+  /* CODE */
+  code { background: var(--code-bg); color: var(--accent2); padding: 2px 6px;
+    border-radius: 4px; font-size: .85em; font-family: 'Cascadia Code','Fira Code',monospace; }
+  pre.code { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 18px; font-family: 'Cascadia Code','Fira Code','Courier New',monospace;
+    font-size: .82rem; color: #a8b5d8; overflow-x: auto; white-space: pre; line-height: 1.6;
+    margin: 12px 0 20px; }
+
+  /* CALLOUT */
+  .callout { border-left: 3px solid var(--accent); background: var(--surface);
+    border-radius: 0 var(--radius) var(--radius) 0; padding: 12px 16px; margin: 16px 0; font-size: .9rem; }
+  .callout.warn { border-left-color: var(--yellow); }
+  .callout.success { border-left-color: var(--green); }
+
+  /* METRIC CARDS */
+  .metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0 24px; }
+  .metric-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px 16px; text-align: center; }
+  .metric-value { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+  .metric-label { font-size: .75rem; color: var(--text-muted); margin-top: 4px;
+    text-transform: uppercase; letter-spacing: .05em; }
+
+  /* SCENARIO CARDS */
+  .scenario-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin: 16px 0 24px; }
+  .scenario-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px 18px; }
+  .scenario-card.default { border-top: 3px solid var(--accent); }
+  .scenario-card.peak { border-top: 3px solid var(--yellow); }
+  .scenario-card.chaos { border-top: 3px solid var(--red); }
+  .scenario-card.under { border-top: 3px solid #c084fc; }
+  .sc-name { font-weight: 700; font-size: .95rem; color: #eef0ff; margin-bottom: 6px; }
+
+  /* MODULE CARDS */
+  .mod-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+  .mod-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px 18px; border-left: 3px solid var(--accent); }
+  .mod-card.rng { border-left-color: var(--yellow); }
+  .mod-card.sim { border-left-color: var(--green); }
+  .mod-card.cli { border-left-color: #c084fc; }
+  .mod-name { font-weight: 700; font-size: .95rem; color: #eef0ff; margin-bottom: 4px; }
+  .mod-path { font-size: .8rem; color: var(--text-muted); margin-bottom: 8px; font-family: monospace; }
+  .mod-desc { font-size: .85rem; color: var(--text); }
+
+  /* FOOTER */
+  .footer { border-top: 1px solid var(--border); padding-top: 24px; margin-top: 60px;
+    display: flex; justify-content: space-between; font-size: .8rem; color: var(--text-muted); flex-wrap: wrap; gap: 8px; }
+
+  @media (max-width: 700px) {
+    .metric-grid, .scenario-grid, .mod-grid { grid-template-columns: 1fr; }
+    h1 { font-size: 1.6rem; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- HEADER -->
+<div class="header">
+  <div class="badge-row">
+    <span class="badge green">Практическая работа №2</span>
+    <span class="badge">Вариант 6</span>
+    <span class="badge yellow">Go 1.23</span>
+    <span class="badge">ИТМО &middot; Февраль 2026</span>
+  </div>
+  <h1>Программа моделирования<br><span>EcomSupplySim</span></h1>
+  <p class="subtitle">
+    Реализация имитационной модели службы e-commerce доставки из ПР&nbsp;№1 &middot;
+    ГПСЧ xoshiro256** &middot; 1&thinsp;000&thinsp;000 испытаний за &lt;&thinsp;350&thinsp;мс
+  </p>
+</div>
+
+<!-- TOC -->
+<div class="toc">
+  <h2>Содержание</h2>
+  <ol>
+    <li><a href="#s1">Описание программы</a>
+      <ol type="a" style="margin-top:4px">
+        <li><a href="#s1-arch">Архитектура и модули</a></li>
+        <li><a href="#s1-rng">Генератор случайных чисел (xoshiro256**)</a></li>
+        <li><a href="#s1-dist">Генерация произвольных распределений</a></li>
+        <li><a href="#s1-blocks">Функциональные блоки модели</a></li>
+      </ol>
+    </li>
+    <li><a href="#s2">Работа программы</a>
+      <ol type="a" style="margin-top:4px">
+        <li><a href="#s2-run">Параметры запуска</a></li>
+        <li><a href="#s2-perf">Производительность</a></li>
+      </ol>
+    </li>
+    <li><a href="#s3">Результаты моделирования</a>
+      <ol type="a" style="margin-top:4px">
+        <li><a href="#s3-default">Базовый сценарий (Default)</a></li>
+        <li><a href="#s3-scenarios">Сравнение сценариев</a></li>
+        <li><a href="#s3-priority">Анализ по приоритетам</a></li>
+      </ol>
+    </li>
+    <li><a href="#s4">Презентация программы</a></li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════════════════════
+     SECTION 1 — PROGRAM DESCRIPTION
+═══════════════════════════════════════ -->
+<div class="section" id="s1">
+  <h2 class="section-title"><span class="num">1</span> Описание программы</h2>
+
+  <h3 id="s1-arch">1.1 Архитектура и модули</h3>
+  <p>Программа реализована на Go 1.23 с разделением на три модуля в соответствии с функциональными блоками модели из ПР&nbsp;№1. Каждый блок модели (Б1&ndash;Б6) соответствует конкретной функции или набору функций в коде.</p>
+
+  <div class="mod-grid">
+    <div class="mod-card rng">
+      <div class="mod-name">internal/rng</div>
+      <div class="mod-path">internal/rng/rng.go &middot; 127 строк</div>
+      <div class="mod-desc">Генератор псевдослучайных чисел <strong>xoshiro256**</strong> и 7 процедур генерации распределений. Полностью самописный &mdash; без <code>math/rand</code>. Единственная зависимость: <code>math</code> (для <code>Log</code>, <code>Sqrt</code>, <code>Cos</code>, <code>Exp</code>).</div>
+    </div>
+    <div class="mod-card sim">
+      <div class="mod-name">internal/sim</div>
+      <div class="mod-path">internal/sim/sim.go &middot; 456 строк</div>
+      <div class="mod-desc">Ядро моделирования: типы <code>Config</code>, <code>Order</code>, <code>Stats</code>, движок <code>Engine</code>. Реализованы все 6 функциональных блоков (Б1&ndash;Б6) и 4 сценария конфигурации. С каждым заказом последовательно проходит по цепочке: генерация &rarr; диспетчеризация &rarr; сборка &rarr; доставка &rarr; клиент &rarr; возврат.</div>
+    </div>
+    <div class="mod-card cli">
+      <div class="mod-name">cmd/sim</div>
+      <div class="mod-path">cmd/sim/main.go &middot; 132 строки</div>
+      <div class="mod-desc">Точка входа CLI. Парсит флаги (<code>-scenario</code>, <code>-seed</code>, <code>-orders</code>), запускает движок и выводит форматированную таблицу результатов. Мастер-ГПСЧ порождает дочерние seed для каждого дня &mdash; обеспечивает воспроизводимость.</div>
+    </div>
+    <div class="mod-card">
+      <div class="mod-name">docs/lab1</div>
+      <div class="mod-path">docs/lab1/report.html</div>
+      <div class="mod-desc">Отчёт ПР&nbsp;№1: описание имитационной модели, блок-схемы, DFD, swimlane, параметры, ожидаемые результаты. Все параметры программы взяты из этого отчёта.</div>
+    </div>
+  </div>
+
+  <h3 id="s1-rng">1.2 Генератор случайных чисел &mdash; xoshiro256**</h3>
+  <p>Реализован генератор <strong>xoshiro256**</strong> (Blackman &amp; Vigna, 2018). Это high-quality all-purpose PRNG с периодом 2<sup>256</sup>&minus;1 и состоянием 256 бит (4&times;uint64).</p>
+
+  <div class="callout">
+    <strong>Почему xoshiro256**:</strong> Быстрый (~1 нс/вызов), отлично проходит BigCrush тесты TestU01, не требует внешних зависимостей. Подходит для имитационного моделирования с большим количеством испытаний. Отличается от стандартного <code>math/rand</code> (PCG) алгоритмом &mdash; нет совпадений с другими работами.
+  </div>
+
+  <h4 style="font-size:.85rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin:18px 0 8px">Алгоритм ГПСЧ</h4>
+  <pre class="code">// Seeding: SplitMix64 разворачивает 1 uint64 seed в 4-word state
+func splitMix64(state *uint64) uint64 {
+    *state += 0x9e3779b97f4a7c15       // golden ratio
+    z := *state
+    z = (z ^ (z &gt;&gt; 30)) * 0xbf58476d1ce4e5b9
+    z = (z ^ (z &gt;&gt; 27)) * 0x94d049bb133111eb
+    return z ^ (z &gt;&gt; 31)
+}
+
+// xoshiro256** core: scrambler = rotl(s1*5, 7) * 9
+func (r *Xoshiro256ss) Uint64() uint64 {
+    result := rotl(r.s1*5, 7) * 9      // output scrambler
+    t := r.s1 &lt;&lt; 17                    // mix
+    r.s2 ^= r.s0; r.s3 ^= r.s1        // state update
+    r.s1 ^= r.s2; r.s0 ^= r.s3
+    r.s2 ^= t;    r.s3 = rotl(r.s3, 45)
+    return result
+}
+
+// Uniform [0, 1): верхние 53 бита / 2^53 — полная точность float64
+func (r *Xoshiro256ss) Float64() float64 {
+    return float64(r.Uint64()&gt;&gt;11) / (1 &lt;&lt; 53)
+}</pre>
+
+  <h3 id="s1-dist">1.3 Генерация произвольных распределений</h3>
+  <p>Все 7 распределений генерируются из равномерного U[0,1) по процедурам, описанным на лекции 2:</p>
+  <table>
+    <thead><tr><th>Распределение</th><th>Метод генерации</th><th>Формула / алгоритм</th><th>Применение в модели</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Exp(&lambda;)</strong></td>
+        <td>Метод обратной функции</td>
+        <td><code>X = &minus;ln(1&minus;U) / &lambda;</code></td>
+        <td>Интервалы заказов (Б1), время ремонта (Б4), инспекция (Б6)</td>
+      </tr>
+      <tr>
+        <td><strong>N(&mu;, &sigma;)</strong></td>
+        <td>Преобразование Бокса&ndash;Мюллера</td>
+        <td><code>Z = &radic;(&minus;2&middot;ln(1&minus;U<sub>1</sub>)) &middot; cos(2&pi;U<sub>2</sub>)</code><br><code>X = &mu; + &sigma;&middot;Z</code></td>
+        <td>Время сборки заказа (Б3)</td>
+      </tr>
+      <tr>
+        <td><strong>LN(&mu;, &sigma;)</strong></td>
+        <td>Через нормальное</td>
+        <td><code>X = exp(N(&mu;, &sigma;))</code></td>
+        <td>Коэффициент трафика (Б4)</td>
+      </tr>
+      <tr>
+        <td><strong>Bern(p)</strong></td>
+        <td>Прямое сравнение</td>
+        <td><code>X = (U &lt; p)</code></td>
+        <td>Брак (Б3), отсутствие клиента (Б5), возврат (Б5), утилизация (Б6)</td>
+      </tr>
+      <tr>
+        <td><strong>U(a, b)</strong></td>
+        <td>Линейное масштабирование</td>
+        <td><code>X = a + U&middot;(b&minus;a)</code></td>
+        <td>Ожидание повторной доставки (Б5), расстояние</td>
+      </tr>
+      <tr>
+        <td><strong>U<sub>int</sub>(a, b)</strong></td>
+        <td>Дискретизация</td>
+        <td><code>X = a + &lfloor;U&middot;(b&minus;a+1)&rfloor;</code></td>
+        <td>Число позиций в заказе (Б3)</td>
+      </tr>
+      <tr>
+        <td><strong>Pois(&lambda;)</strong></td>
+        <td>Алгоритм Кнута</td>
+        <td>Подсчёт: <code>k++; p*=U; пока p&gt;e<sup>&minus;&lambda;</sup></code></td>
+        <td>Вспомогательный (для расширений)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3 id="s1-blocks">1.4 Функциональные блоки модели в коде</h3>
+  <p>Каждый из 6 блоков модели из ПР&nbsp;№1 реализован как часть метода <code>Engine.SimulateDay()</code> и <code>Engine.processOrder()</code>:</p>
+
+  <table>
+    <thead><tr><th>Блок</th><th>Распределения</th><th>Реализация в Go</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Б1</strong> OrderGenerator</td>
+        <td>Exp(&lambda;(t)), Bern (приоритет)</td>
+        <td><code>SimulateDay()</code>: цикл генерации заказов. &lambda;(t) переключается по часам суток через <code>lambdaBase(hour)</code>. Приоритет: 5% express / 20% same-day / 75% standard.</td>
+      </tr>
+      <tr>
+        <td><strong>Б2</strong> Dispatcher</td>
+        <td>&mdash; (детерминированный)</td>
+        <td><code>processOrder()</code>: перебор магазинов, выбор слота с минимальным временем готовности + проверка stock&gt;0. Нет товара &rarr; CANCELLED.</td>
+      </tr>
+      <tr>
+        <td><strong>Б3</strong> Store Assembly</td>
+        <td>N(15,4), U<sub>int</sub>(1,5), Bern(0.02)</td>
+        <td>Время сборки: <code>NormalPositive(15,4,1) &times; w</code>, где <code>w = 1+0.05&middot;(nItems&minus;1)</code>. Дефект &rarr; Б6 (инспекция, возможная утилизация).</td>
+      </tr>
+      <tr>
+        <td><strong>Б4</strong> Courier Delivery</td>
+        <td>LN(0,0.35), Exp(1/30), U(0.5,8)</td>
+        <td>Выбор свободного курьера (min courFree). Время: <code>(dist/speed)&times;60&times;LN</code>. Поломка: <code>Bern(1&minus;e<sup>&minus;&lambda;&middot;t/1440</sup>)</code> &rarr; +Exp(30мин).</td>
+      </tr>
+      <tr>
+        <td><strong>Б5</strong> Customer</td>
+        <td>Bern(0.15), Bern(p<sub>ret</sub>), U(60,240)</td>
+        <td>До 2 попыток. p<sub>ret</sub> = 0.08&middot;(1+0.5&middot;delayRatio)&middot;&beta;<sub>SLA</sub>. Отказ &rarr; Б6. 2 неудачи &rarr; CANCELLED.</td>
+      </tr>
+      <tr>
+        <td><strong>Б6</strong> Return Logistics</td>
+        <td>LN(0,0.35), Exp(1/10), Bern(0.25)</td>
+        <td>Обратная доставка + инспекция. Критический брак (25%) &rarr; DISPOSED, иначе &rarr; RESTOCKED (инвентарь +1).</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════
+     SECTION 2 — RUNNING
+═══════════════════════════════════════ -->
+<div class="section" id="s2">
+  <h2 class="section-title"><span class="num">2</span> Работа программы</h2>
+
+  <h3 id="s2-run">2.1 Параметры запуска</h3>
+  <pre class="code">go run ./cmd/sim [flags]
+
+Флаги:
+  -scenario  default | peak | chaos | understaffed    (default: "default")
+  -seed      uint64 seed для ГПСЧ                     (default: 42)
+  -orders    минимальное число заказов                 (default: 1 000 000)</pre>
+
+  <p>Модель запускается посуточно: каждый виртуальный &laquo;день&raquo; &mdash; 1440 минут модельного времени. Дни прогоняются последовательно до набора заданного количества заказов. Мастер-ГПСЧ порождает уникальный seed для каждого дня &mdash; обеспечивает воспроизводимость всех результатов при повторном запуске с тем же seed.</p>
+
+  <h3 id="s2-perf">2.2 Производительность</h3>
+
+  <table>
+    <thead><tr><th>Сценарий</th><th>Заказов</th><th>Дней</th><th>Время (wall clock)</th><th>Заказов/сек</th></tr></thead>
+    <tbody>
+      <tr><td>Default</td><td>1 000 052</td><td>6 708</td><td><strong>313 мс</strong></td><td>~3 200 000</td></tr>
+      <tr><td>Peak</td><td>1 000 268</td><td>2 641</td><td><strong>333 мс</strong></td><td>~3 000 000</td></tr>
+      <tr><td>Chaos</td><td>1 000 052</td><td>6 708</td><td><strong>314 мс</strong></td><td>~3 180 000</td></tr>
+      <tr><td>Understaffed</td><td>1 000 052</td><td>6 708</td><td><strong>298 мс</strong></td><td>~3 360 000</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout success">
+    <strong>1 000 000 испытаний &mdash; менее 350 мс</strong> на обычном ноутбуке. Вся стохастика на собственном ГПСЧ xoshiro256** (без <code>math/rand</code>). Seed=42, результаты полностью воспроизводимы.
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     SECTION 3 — RESULTS
+═══════════════════════════════════════ -->
+<div class="section" id="s3">
+  <h2 class="section-title"><span class="num">3</span> Результаты моделирования</h2>
+
+  <h3 id="s3-default">3.1 Базовый сценарий (Default) &mdash; 1 000 052 заказа</h3>
+
+  <h4 style="font-size:.85rem;color:var(--text-muted);text-transform:uppercase;margin:18px 0 8px">Ключевые метрики</h4>
+  <div class="metric-grid">
+    <div class="metric-card"><div class="metric-value">41.1</div><div class="metric-label">мин &middot; ср. время доставки</div></div>
+    <div class="metric-card"><div class="metric-value">19.0</div><div class="metric-label">мин &middot; ср. время возврата</div></div>
+    <div class="metric-card"><div class="metric-value">84.3%</div><div class="metric-label">доля доставленных</div></div>
+    <div class="metric-card"><div class="metric-value">5.2</div><div class="metric-label">заказов / час / день</div></div>
+    <div class="metric-card"><div class="metric-value">25.7%</div><div class="metric-label">загрузка курьеров</div></div>
+    <div class="metric-card"><div class="metric-value">14.2%</div><div class="metric-label">загрузка сборки</div></div>
+    <div class="metric-card"><div class="metric-value">1.5%</div><div class="metric-label">SLA нарушений</div></div>
+    <div class="metric-card"><div class="metric-value">13.5%</div><div class="metric-label">доля возвратов (restock+dispose)</div></div>
+  </div>
+
+  <h4 style="font-size:.85rem;color:var(--text-muted);text-transform:uppercase;margin:18px 0 8px">Распределение по статусам</h4>
+  <table>
+    <thead><tr><th>Статус</th><th>Количество</th><th>Доля</th></tr></thead>
+    <tbody>
+      <tr><td><span style="color:var(--green)">&#10003;</span> DELIVERED</td><td>842 854</td><td>84.28%</td></tr>
+      <tr><td><span style="color:var(--red)">&times;</span> CANCELLED</td><td>22 189</td><td>2.22%</td></tr>
+      <tr><td><span style="color:var(--yellow)">&larr;</span> RESTOCKED</td><td>101 394</td><td>10.14%</td></tr>
+      <tr><td><span style="color:var(--red)">&#128465;</span> DISPOSED</td><td>33 615</td><td>3.36%</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="s3-scenarios">3.2 Сравнение сценариев &mdash; 1 000 000+ заказов каждый</h3>
+
+  <table>
+    <thead><tr><th>Метрика</th><th>Default</th><th>Peak</th><th>Chaos</th><th>Understaffed</th></tr></thead>
+    <tbody>
+      <tr><td>Ср. время доставки, мин</td><td><strong>41.1</strong></td><td>42.5</td><td>43.2</td><td>49.8</td></tr>
+      <tr><td>&sigma; времени доставки</td><td>45.7</td><td>46.0</td><td>47.0</td><td>51.0</td></tr>
+      <tr><td>DELIVERED, %</td><td><strong>84.3</strong></td><td>84.2</td><td>83.9</td><td>82.6</td></tr>
+      <tr><td>CANCELLED, %</td><td>2.2</td><td>2.2</td><td>2.2</td><td>2.2</td></tr>
+      <tr><td>RESTOCKED, %</td><td>10.1</td><td>10.2</td><td>10.4</td><td>11.4</td></tr>
+      <tr><td>DISPOSED, %</td><td>3.4</td><td>3.4</td><td>3.5</td><td>3.8</td></tr>
+      <tr><td>Загрузка курьеров, %</td><td>25.7</td><td>39.2</td><td>27.4</td><td><strong>48.3</strong></td></tr>
+      <tr><td>Загрузка сборки, %</td><td>14.2</td><td><strong>36.2</strong></td><td>14.2</td><td>14.2</td></tr>
+      <tr><td>SLA нарушения, %</td><td>1.5</td><td>1.5</td><td>1.7</td><td><strong>2.1</strong></td></tr>
+      <tr><td>Ср. время возврата, мин</td><td>19.0</td><td>18.9</td><td><strong>20.9</strong></td><td>19.0</td></tr>
+      <tr><td>Wall time, мс</td><td>313</td><td>333</td><td>314</td><td>298</td></tr>
+    </tbody>
+  </table>
+
+  <div class="scenario-grid">
+    <div class="scenario-card default">
+      <div class="sc-name">Default &mdash; Базовый</div>
+      <p style="font-size:.85rem;color:var(--text)">Система справляется легко: загрузка курьеров 25.7%, сборки 14.2%. Резерв мощности значительный. SLA-нарушения минимальны (1.5%, почти все &mdash; express).</p>
+    </div>
+    <div class="scenario-card peak">
+      <div class="sc-name">Peak (&lambda;&times;2.5, 25 курьеров)</div>
+      <p style="font-size:.85rem;color:var(--text)">Нагрузка &times;2.5, но добавлены 10 курьеров. Загрузка курьеров выросла до 39.2%, сборки &mdash; до 36.2%. Система держит удар. Ср. время доставки практически не изменилось (+1.4 мин).</p>
+    </div>
+    <div class="scenario-card chaos">
+      <div class="sc-name">Chaos (&lambda;<sub>break</sub>&times;5, &sigma;<sub>tr</sub>&times;2)</div>
+      <p style="font-size:.85rem;color:var(--text)">Массовые поломки и пробки. Ср. время доставки +2.1 мин, время возвратов +1.9 мин. Express SLA breach 18% (vs 14.8% default). Система деградирует мягко.</p>
+    </div>
+    <div class="scenario-card under">
+      <div class="sc-name">Understaffed (8 курьеров)</div>
+      <p style="font-size:.85rem;color:var(--text)">Курьеров почти вдвое меньше. Их загрузка 48.3%, ср. время +8.7 мин. Express SLA breach 24.1% &mdash; критично. RESTOCKED растёт до 11.4% (больше возвратов из-за задержек).</p>
+    </div>
+  </div>
+
+  <h3 id="s3-priority">3.3 Анализ по приоритетам (Default)</h3>
+  <table>
+    <thead><tr><th>Тип</th><th>Заказов</th><th>Доля потока</th><th>Доставлено</th><th>Ср. время, мин</th><th>SLA breach</th></tr></thead>
+    <tbody>
+      <tr><td><strong>standard</strong></td><td>749 594</td><td>75.0%</td><td>633 117 (84.5%)</td><td>41.5</td><td><strong>0.0%</strong></td></tr>
+      <tr><td><strong>same-day</strong></td><td>200 631</td><td>20.1%</td><td>168 629 (84.0%)</td><td>40.5</td><td>3.8%</td></tr>
+      <tr><td><strong>express</strong></td><td>49 827</td><td>5.0%</td><td>41 108 (82.5%)</td><td>37.7</td><td><strong>14.8%</strong></td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout warn">
+    <strong>Наблюдение:</strong> Express заказы доставляются быстрее (37.7 мин vs 41.5), но SLA breach 14.8% &mdash; из-за жёсткого лимита 60 мин. Для снижения SLA breach ниже 5% потребуется либо выделенный пул курьеров для express, либо увеличение общего числа курьеров до ~20.
+  </div>
+
+  <h3>3.4 Интерпретация результатов</h3>
+  <table>
+    <thead><tr><th>Наблюдение</th><th>Вывод для бизнеса</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Загрузка курьеров в базовом сценарии 25.7%</td>
+        <td>Курьерский пул избыточен: можно сократить до 10 курьеров без деградации</td>
+      </tr>
+      <tr>
+        <td>Understaffed (8 курьеров): загрузка 48.3%, SLA breach express 24.1%</td>
+        <td>8 курьеров &mdash; нижняя граница; express-SLA неприемлема</td>
+      </tr>
+      <tr>
+        <td>Peak: сборка загружена на 36.2% при &lambda;&times;2.5</td>
+        <td>12 сборочных слотов (4&times;3) достаточны даже для &laquo;Чёрной пятницы&raquo;</td>
+      </tr>
+      <tr>
+        <td>Chaos: время возвратов +1.9 мин</td>
+        <td>Пробки незначительно влияют на обратную логистику; основной удар &mdash; по express-SLA</td>
+      </tr>
+      <tr>
+        <td>DISPOSED ~3.4% от всех заказов</td>
+        <td>Утилизация стабильна; основной управляющий параметр &mdash; p_dispose=0.25</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════
+     SECTION 4 — PRESENTATION
+═══════════════════════════════════════ -->
+<div class="section" id="s4">
+  <h2 class="section-title"><span class="num">4</span> Презентация программы</h2>
+
+  <h3>Структура программы</h3>
+  <pre class="code">EcomSupplySim/
+├── cmd/sim/main.go          # CLI: флаги, запуск, вывод результатов
+├── internal/
+│   ├── rng/rng.go           # ГПСЧ xoshiro256** + 7 распределений
+│   └── sim/sim.go           # Движок: Config, Order, Stats, Engine
+├── docs/
+│   ├── lab1/report.html     # Отчёт ПР №1 (модель)
+│   └── lab2/report.html     # Отчёт ПР №2 (программа) ← этот файл
+└── go.mod                   # Go 1.23 module</pre>
+
+  <h3>Как запустить</h3>
+  <pre class="code"># Сборка
+go build ./cmd/sim/
+
+# Запуск: 1 000 000 заказов, базовый сценарий
+./sim -scenario default -seed 42 -orders 1000000
+
+# Другие сценарии
+./sim -scenario peak
+./sim -scenario chaos
+./sim -scenario understaffed</pre>
+
+  <h3>Вывод программы (Default, seed=42)</h3>
+  <pre class="code">==============================================================
+  EcomSupplySim | PR #2 | Имитационное моделирование
+  ГПСЧ: xoshiro256** (Blackman &amp; Vigna, 2018)
+==============================================================
+  Сценарий:            default
+  Магазинов:           4   Курьеров: 15   Слотов/маг: 3
+  Дней смоделировано:  6708
+  Всего заказов:       1000052
+  Время работы:        313ms
+--------------------------------------------------------------
+                    СТАТУСЫ ЗАКАЗОВ
+--------------------------------------------------------------
+  DELIVERED             842854  (84.28%)
+  CANCELLED              22189  ( 2.22%)
+  RESTOCKED             101394  (10.14%)
+  DISPOSED               33615  ( 3.36%)
+--------------------------------------------------------------
+                    МЕТРИКИ
+--------------------------------------------------------------
+  Ср. время доставки:            41.1 мин  (sigma = 45.7)
+  Ср. время возврата:            19.0 мин
+  Ср. ожидание в очереди:         0.0 мин
+  Обслужено заказов/час:          5.2
+  SLA нарушений:                  1.5%
+--------------------------------------------------------------
+                    ЗАГРУЗКА РЕСУРСОВ
+--------------------------------------------------------------
+  Сборочные слоты:              14.2%
+  Курьеры:                      25.7%
+--------------------------------------------------------------
+                    ПО ПРИОРИТЕТАМ
+--------------------------------------------------------------
+  Тип        Заказов Доставлено   Ср.время SLABreach
+  standard   749594     633117     41.5 мин     0.0%
+  same-day   200631     168629     40.5 мин     3.8%
+  express     49827      41108     37.7 мин    14.8%
+==============================================================</pre>
+
+  <h3>Итого</h3>
+  <div class="callout success">
+    <strong>Требования ПР&nbsp;№2 выполнены:</strong><br>
+    ✓ Собственный ГПСЧ (xoshiro256**, не совпадает с другими работами)<br>
+    ✓ Генерация произвольных распределений по методам лекции 2<br>
+    ✓ 6 функциональных блоков с &ge;3 разными случайными распределениями (Exp, N, LN, Bern, U, Pois)<br>
+    ✓ 1 000 000 испытаний за &lt;&thinsp;350 мс<br>
+    ✓ 4 сценария + анализ по приоритетам<br>
+    ✓ Таблицы и метрики: время, статусы, загрузка, SLA
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <span>Практическая работа №2 &middot; Имитационное моделирование &middot; ИТМО 2026</span>
+  <span>EcomSupplySim &middot; Go 1.23 &middot; Вариант 6</span>
+</div>
+
+</div>
+</body>
+</html>
