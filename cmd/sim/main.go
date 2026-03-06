@@ -13,8 +13,11 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"math"
+	"os"
 	"strings"
 	"time"
 
@@ -26,6 +29,7 @@ func main() {
 	scenario := flag.String("scenario", "default", "Сценарий: default, peak, chaos, understaffed")
 	seed := flag.Uint64("seed", 42, "Seed ГПСЧ xoshiro256**")
 	minOrders := flag.Int("orders", 1_000_000, "Минимальное число заказов для моделирования")
+	dailyFile := flag.String("daily", "", "Записать посуточную статистику в JSON-файл")
 	flag.Parse()
 
 	cfg := pickConfig(*scenario)
@@ -47,6 +51,10 @@ func main() {
 
 	elapsed := time.Since(start)
 	printResults(engine, *scenario, nDays, elapsed)
+
+	if *dailyFile != "" {
+		writeDailyJSON(engine, *dailyFile)
+	}
 }
 
 func pickConfig(name string) sim.Config {
@@ -96,7 +104,6 @@ func printResults(e *sim.Engine, scenario string, nDays int, elapsed time.Durati
 	fmt.Printf("  Ср. время доставки:          %6.1f мин  (sigma = %.1f)\n",
 		s.AvgDelivery(), s.StdDelivery())
 	fmt.Printf("  Ср. время возврата:           %6.1f мин\n", s.AvgReturn())
-	fmt.Printf("  Ср. ожидание в очереди:       %6.1f мин\n", s.AvgQueueWait())
 	servedPerHour := float64(s.ByStatus[sim.Delivered]) / float64(nDays) / 24.0
 	fmt.Printf("  Обслужено заказов/час:        %6.1f\n", servedPerHour)
 	slaPct := float64(s.SLABreaches) / float64(s.TotalOrders) * 100
@@ -127,5 +134,94 @@ func printResults(e *sim.Engine, scenario string, nDays int, elapsed time.Durati
 			pri.String(), ps.Count, ps.Delivered, avgT, slaBr)
 	}
 
+	// Daily variation summary
+	printDailyVariation(e)
+
 	fmt.Println(line)
+}
+
+func printDailyVariation(e *sim.Engine) {
+	days := e.Days
+	if len(days) == 0 {
+		return
+	}
+
+	n := len(days)
+	ordersF := make([]float64, n)
+	delivPct := make([]float64, n)
+	avgDeliv := make([]float64, n)
+	slaBr := make([]float64, n)
+	courUtil := make([]float64, n)
+	asmUtil := make([]float64, n)
+
+	for i, d := range days {
+		ordersF[i] = float64(d.Orders)
+		if d.Orders > 0 {
+			delivPct[i] = float64(d.Delivered) / float64(d.Orders) * 100
+		}
+		avgDeliv[i] = d.AvgDelivery
+		slaBr[i] = d.SLABreachPct
+		courUtil[i] = d.CourierUtil
+		asmUtil[i] = d.AssemblyUtil
+	}
+
+	type row struct {
+		name string
+		vals []float64
+	}
+	rows := []row{
+		{"Заказов/день", ordersF},
+		{"Delivered %", delivPct},
+		{"Avg delivery мин", avgDeliv},
+		{"SLA breach %", slaBr},
+		{"Courier util %", courUtil},
+		{"Assembly util %", asmUtil},
+	}
+
+	thin := strings.Repeat("-", 62)
+	fmt.Println(thin)
+	fmt.Printf("       ВАРИАЦИЯ ПО ДНЯМ (N=%d независимых повторов)\n", n)
+	fmt.Println(thin)
+	fmt.Printf("  %-20s %8s %8s %8s %8s\n", "Метрика", "Mean", "Std", "Min", "Max")
+	for _, r := range rows {
+		mean, std, mn, mx := seriesStats(r.vals)
+		fmt.Printf("  %-20s %8.1f %8.2f %8.1f %8.1f\n", r.name, mean, std, mn, mx)
+	}
+}
+
+func seriesStats(vals []float64) (mean, std, min, max float64) {
+	n := float64(len(vals))
+	min, max = vals[0], vals[0]
+	var sum, sum2 float64
+	for _, v := range vals {
+		sum += v
+		sum2 += v * v
+		if v < min {
+			min = v
+		}
+		if v > max {
+			max = v
+		}
+	}
+	mean = sum / n
+	variance := sum2/n - mean*mean
+	if variance < 0 {
+		variance = 0
+	}
+	std = math.Sqrt(variance)
+	return
+}
+
+func writeDailyJSON(e *sim.Engine, path string) {
+	f, err := os.Create(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "daily json: %v\n", err)
+		return
+	}
+	defer f.Close()
+	enc := json.NewEncoder(f)
+	enc.SetIndent("", " ")
+	if err := enc.Encode(e.Days); err != nil {
+		fmt.Fprintf(os.Stderr, "daily json encode: %v\n", err)
+	}
 }

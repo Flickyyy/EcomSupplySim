@@ -67,7 +67,7 @@ type Config struct {
 // DefaultConfig returns the baseline scenario parameters.
 func DefaultConfig() Config {
 	return Config{
-		NStores: 4, NCouriers: 15, SlotsPerStore: 3, QMax: 50,
+		NStores: 4, NCouriers: 5, SlotsPerStore: 3, QMax: 50,
 		MuAsm: 15.0, SigmaAsm: 4.0, PDefect: 0.02,
 		MeanSpeed: 25.0, SigmaTraffic: 0.35, LambdaBreak: 0.1, MuRepair: 30.0,
 		PAbsent: 0.15, PRetBase: 0.08, Alpha: 0.5, MaxAttempts: 2, BetaSLA: 1.5,
@@ -227,6 +227,19 @@ func (s *Stats) AvgQueueWait() float64 {
 	return s.QueueWaitSum / float64(s.TotalOrders)
 }
 
+// DaySnapshot holds per-day aggregated metrics (one independent trial).
+type DaySnapshot struct {
+	Orders       int     `json:"orders"`
+	Delivered    int     `json:"delivered"`
+	Cancelled    int     `json:"cancelled"`
+	Restocked    int     `json:"restocked"`
+	Disposed     int     `json:"disposed"`
+	AvgDelivery  float64 `json:"avgDelivery"`
+	SLABreachPct float64 `json:"slaBreachPct"`
+	CourierUtil  float64 `json:"courierUtil"`
+	AssemblyUtil float64 `json:"assemblyUtil"`
+}
+
 // dayState holds transient resource tracking for one simulated day.
 type dayState struct {
 	asmFree  [][]float64
@@ -255,6 +268,7 @@ func newDayState(cfg *Config) *dayState {
 type Engine struct {
 	Cfg   Config
 	Stats Stats
+	Days  []DaySnapshot
 }
 
 // NewEngine creates a simulation engine.
@@ -299,7 +313,11 @@ func (e *Engine) SimulateDay(r *rng.Xoshiro256ss) int {
 		orders = append(orders, entry{t: t, pri: pri})
 	}
 
-	// Process each order sequentially
+	// Process each order sequentially, track per-day outcomes
+	var dayDeliv, daySLA int
+	var dayDelivSum float64
+	var dayByStatus [4]int
+
 	for _, oe := range orders {
 		o := Order{
 			CreatedAt: oe.t,
@@ -308,6 +326,15 @@ func (e *Engine) SimulateDay(r *rng.Xoshiro256ss) int {
 		}
 		e.processOrder(r, &o, ds)
 		e.Stats.Record(&o)
+
+		dayByStatus[o.Status]++
+		if o.Status == Delivered {
+			dayDeliv++
+			dayDelivSum += o.DeliveryTime
+		}
+		if o.SLABreached {
+			daySLA++
+		}
 	}
 
 	// Update capacity counters
@@ -315,7 +342,33 @@ func (e *Engine) SimulateDay(r *rng.Xoshiro256ss) int {
 	e.Stats.AssemblyCapacity += float64(cfg.NStores*cfg.SlotsPerStore) * dayMin
 	e.Stats.CourierBusy += ds.courBusy
 	e.Stats.CourierCapacity += float64(cfg.NCouriers) * dayMin
-	return len(orders)
+
+	// Record per-day snapshot
+	nOrd := len(orders)
+	snap := DaySnapshot{
+		Orders:    nOrd,
+		Delivered: dayByStatus[Delivered],
+		Cancelled: dayByStatus[Cancelled],
+		Restocked: dayByStatus[Restocked],
+		Disposed:  dayByStatus[Disposed],
+	}
+	if dayDeliv > 0 {
+		snap.AvgDelivery = dayDelivSum / float64(dayDeliv)
+	}
+	if nOrd > 0 {
+		snap.SLABreachPct = float64(daySLA) / float64(nOrd) * 100
+	}
+	asmCap := float64(cfg.NStores*cfg.SlotsPerStore) * dayMin
+	courCap := float64(cfg.NCouriers) * dayMin
+	if asmCap > 0 {
+		snap.AssemblyUtil = ds.asmBusy / asmCap * 100
+	}
+	if courCap > 0 {
+		snap.CourierUtil = ds.courBusy / courCap * 100
+	}
+	e.Days = append(e.Days, snap)
+
+	return nOrd
 }
 
 // processOrder simulates an order through B2->B3->B4->B5->(B6).
