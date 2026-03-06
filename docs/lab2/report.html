@@ -40,7 +40,10 @@
   h2.section-title .num { background: var(--accent); color: #fff; font-size: .8rem; font-weight: 700;
     border-radius: 6px; padding: 2px 8px; flex-shrink: 0; }
   h3 { font-size: 1.1rem; font-weight: 600; color: var(--accent2); margin: 28px 0 12px; }
+  h4.sub { font-size:.85rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; margin:18px 0 8px; }
   p { margin-bottom: 12px; }
+  ul.bullets { margin: 8px 0 16px 24px; }
+  ul.bullets li { margin: 4px 0; }
   table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: .9rem; }
   th { background: var(--surface2); color: var(--text-muted); font-size: .75rem;
     text-transform: uppercase; letter-spacing: .07em; padding: 10px 14px;
@@ -48,6 +51,7 @@
   td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
   tr:last-child td { border-bottom: none; }
   tr:hover td { background: var(--surface2); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; font-family: 'Cascadia Code','Fira Code',monospace; font-size: .82rem; }
   code { background: var(--code-bg); color: var(--accent2); padding: 2px 6px;
     border-radius: 4px; font-size: .85em; font-family: 'Cascadia Code','Fira Code',monospace; }
   pre.code { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
@@ -106,7 +110,7 @@
   <h1>Программа моделирования<br><span>EcomSupplySim</span></h1>
   <p class="subtitle">
     Реализация имитационной модели службы e-commerce доставки из ПР&nbsp;№1 &middot;
-    ГПСЧ xoshiro256** &middot; 1&thinsp;000&thinsp;000 испытаний &middot; посуточная статистика + графики
+    ГПСЧ xoshiro256** &middot; 1&thinsp;000&thinsp;000 испытаний &middot; статистический анализ по дням
   </p>
 </div>
 
@@ -116,329 +120,282 @@
   <ol>
     <li><a href="#s1">Описание программы</a></li>
     <li><a href="#s2">Работа программы</a></li>
-    <li><a href="#s3">Результаты моделирования</a>
+    <li><a href="#s3">Агрегированные результаты</a></li>
+    <li><a href="#s4">Статистический анализ по дням</a>
       <ol type="a" style="margin-top:4px">
-        <li><a href="#s3-default">Базовый сценарий (Default)</a></li>
-        <li><a href="#s3-scenarios">Сравнение сценариев</a></li>
-        <li><a href="#s3-priority">Анализ по приоритетам</a></li>
-      </ol>
-    </li>
-    <li><a href="#s4">Анализ по дням (многократные независимые повторы)</a>
-      <ol type="a" style="margin-top:4px">
-        <li><a href="#s4-var">Вариация метрик по дням</a></li>
-        <li><a href="#s4-charts">Графики: динамика по дням</a></li>
-        <li><a href="#s4-conv">Сходимость средних</a></li>
+        <li><a href="#s4-var">Дисперсионный анализ и доверительные интервалы</a></li>
+        <li><a href="#s4-hist">Гистограммы распределений</a></li>
+        <li><a href="#s4-ts">Временные ряды (динамика по дням)</a></li>
+        <li><a href="#s4-norm">Проверка нормальности и правило 3&sigma;</a></li>
       </ol>
     </li>
     <li><a href="#s5">Презентация программы</a></li>
   </ol>
 </div>
 
-<!-- SECTION 1 -->
+<!-- ══════════ SECTION 1 ══════════ -->
 <div class="section" id="s1">
   <h2 class="section-title"><span class="num">1</span> Описание программы</h2>
 
-  <h3>1.1 Архитектура и модули</h3>
-  <p>Программа реализована на Go 1.23 с разделением на три пакета. Каждый блок модели (Б1&ndash;Б6) соответствует функции в коде.</p>
-
+  <h3>1.1 Архитектура</h3>
   <div class="mod-grid">
-    <div class="mod-card rng">
-      <div class="mod-name">internal/rng</div>
-      <div class="mod-path">internal/rng/rng.go &middot; 127 строк</div>
-      <div class="mod-desc">ГПСЧ <strong>xoshiro256**</strong> и 7 процедур генерации распределений. Полностью самописный &mdash; без <code>math/rand</code>.</div>
-    </div>
-    <div class="mod-card sim">
-      <div class="mod-name">internal/sim</div>
-      <div class="mod-path">internal/sim/sim.go &middot; ~490 строк</div>
-      <div class="mod-desc">Движок: <code>Config</code>, <code>Order</code>, <code>Stats</code>, <code>DaySnapshot</code>, <code>Engine</code>. 6 блоков (Б1&ndash;Б6), 4 сценария. Каждый день &mdash; независимый повтор с посуточным снимком метрик.</div>
-    </div>
-    <div class="mod-card cli">
-      <div class="mod-name">cmd/sim</div>
-      <div class="mod-path">cmd/sim/main.go &middot; ~200 строк</div>
-      <div class="mod-desc">CLI: флаги <code>-scenario</code>, <code>-seed</code>, <code>-orders</code>, <code>-daily</code>. Выводит агрегированные метрики + таблицу вариации по дням. Опционально экспортирует посуточный JSON.</div>
-    </div>
-    <div class="mod-card">
-      <div class="mod-name">docs/</div>
-      <div class="mod-path">docs/lab1/report.html &middot; docs/lab2/report.html</div>
-      <div class="mod-desc">Отчёты ПР&nbsp;№1 (модель) и ПР&nbsp;№2 (программа).</div>
-    </div>
+    <div class="mod-card rng"><div class="mod-name">internal/rng</div><div class="mod-path">rng.go &middot; 127 строк</div><div class="mod-desc">ГПСЧ xoshiro256** + 7 распределений (Exp, N, LN, Bern, U, U<sub>int</sub>, Pois). Без <code>math/rand</code>.</div></div>
+    <div class="mod-card sim"><div class="mod-name">internal/sim</div><div class="mod-path">sim.go &middot; ~490 строк</div><div class="mod-desc">Движок: 6 блоков (Б1&ndash;Б6), 4 сценария, <code>DaySnapshot</code> &mdash; посуточные снимки метрик.</div></div>
+    <div class="mod-card cli"><div class="mod-name">cmd/sim</div><div class="mod-path">main.go &middot; ~230 строк</div><div class="mod-desc">CLI с флагами <code>-scenario</code>/<code>-seed</code>/<code>-orders</code>/<code>-daily</code>. Таблица вариации + экспорт JSON.</div></div>
+    <div class="mod-card"><div class="mod-name">docs/</div><div class="mod-path">lab1/ &middot; lab2/</div><div class="mod-desc">Отчёты ПР&nbsp;№1 и ПР&nbsp;№2.</div></div>
   </div>
 
-  <h3>1.2 ГПСЧ &mdash; xoshiro256**</h3>
-  <p>Генератор <strong>xoshiro256**</strong> (Blackman &amp; Vigna, 2018). Период 2<sup>256</sup>&minus;1, состояние 256 бит (4&times;uint64). Seeding через SplitMix64.</p>
-
-  <h3>1.3 Генерация распределений</h3>
+  <h3>1.2 ГПСЧ и распределения</h3>
   <table>
-    <thead><tr><th>Распределение</th><th>Метод</th><th>Применение</th></tr></thead>
+    <thead><tr><th>Распределение</th><th>Метод</th><th>Применение в блоках</th></tr></thead>
     <tbody>
-      <tr><td><strong>Exp(&lambda;)</strong></td><td>Обратная функция: <code>&minus;ln(1&minus;U)/&lambda;</code></td><td>Интервалы заказов, ремонт, инспекция</td></tr>
-      <tr><td><strong>N(&mu;,&sigma;)</strong></td><td>Бокс&ndash;Мюллер</td><td>Время сборки</td></tr>
-      <tr><td><strong>LN(&mu;,&sigma;)</strong></td><td><code>exp(N(&mu;,&sigma;))</code></td><td>Коэффициент трафика</td></tr>
-      <tr><td><strong>Bern(p)</strong></td><td><code>U &lt; p</code></td><td>Дефект, отсутствие, возврат, утилизация</td></tr>
-      <tr><td><strong>U(a,b)</strong></td><td>Линейное масштабирование</td><td>Ожидание, расстояние</td></tr>
-      <tr><td><strong>U<sub>int</sub>(a,b)</strong></td><td>Дискретизация</td><td>Число позиций</td></tr>
+      <tr><td><strong>Exp(&lambda;)</strong></td><td>Обратная функция</td><td>Б1 (интервалы), Б4 (ремонт), Б6 (инспекция)</td></tr>
+      <tr><td><strong>N(&mu;,&sigma;)</strong></td><td>Бокс&ndash;Мюллер</td><td>Б3 (время сборки)</td></tr>
+      <tr><td><strong>LN(&mu;,&sigma;)</strong></td><td>exp(N)</td><td>Б4, Б6 (трафик)</td></tr>
+      <tr><td><strong>Bern(p)</strong></td><td>U&lt;p</td><td>Б3 (дефект), Б5 (отсутствие, возврат), Б6 (утилизация)</td></tr>
+      <tr><td><strong>U(a,b)</strong></td><td>a+U(b&minus;a)</td><td>Б4 (расстояние), Б5 (ожидание)</td></tr>
+      <tr><td><strong>U<sub>int</sub></strong></td><td>Дискретизация</td><td>Б3 (число позиций)</td></tr>
       <tr><td><strong>Pois(&lambda;)</strong></td><td>Алгоритм Кнута</td><td>Вспомогательный</td></tr>
     </tbody>
   </table>
-
-  <h3>1.4 Функциональные блоки</h3>
-  <table>
-    <thead><tr><th>Блок</th><th>Распределения</th><th>Реализация</th></tr></thead>
-    <tbody>
-      <tr><td><strong>Б1</strong> OrderGenerator</td><td>Exp(&lambda;(t)), Bern</td><td><code>SimulateDay()</code>: пуассоновский поток с переменной &lambda; по часам</td></tr>
-      <tr><td><strong>Б2</strong> Dispatcher</td><td>&mdash;</td><td>Выбор магазина с мин. временем готовности слота + stock&gt;0</td></tr>
-      <tr><td><strong>Б3</strong> Assembly</td><td>N(15,4), U<sub>int</sub>(1,5), Bern(0.02)</td><td>Сборка: <code>NormalPositive(15,4,1)&times;w</code>. Дефект &rarr; Б6</td></tr>
-      <tr><td><strong>Б4</strong> Courier</td><td>LN(0,0.35), Exp(1/30), U(0.5,8)</td><td>Доставка: <code>(dist/speed)&times;60&times;LN</code>. Поломка &rarr; +Exp(30)</td></tr>
-      <tr><td><strong>Б5</strong> Customer</td><td>Bern(0.15), Bern(p<sub>ret</sub>), U(60,240)</td><td>До 2 попыток. Возврат &rarr; Б6. 2 неудачи &rarr; CANCELLED</td></tr>
-      <tr><td><strong>Б6</strong> Return</td><td>LN, Exp(1/10), Bern(0.25)</td><td>Обратная доставка + инспекция. 25% &rarr; DISPOSED</td></tr>
-    </tbody>
-  </table>
 </div>
 
-<!-- SECTION 2 -->
+<!-- ══════════ SECTION 2 ══════════ -->
 <div class="section" id="s2">
   <h2 class="section-title"><span class="num">2</span> Работа программы</h2>
-
-  <pre class="code">go run ./cmd/sim [flags]
-
-Флаги:
-  -scenario    default | peak | chaos | understaffed   (default: "default")
-  -seed        uint64 seed для ГПСЧ                    (default: 42)
-  -orders      минимальное число заказов                (default: 1 000 000)
-  -daily FILE  записать посуточный JSON в файл</pre>
-
-  <p>Каждый виртуальный день &mdash; 1440 минут модельного времени, независимый повтор эксперимента. После каждого дня записывается <code>DaySnapshot</code> с метриками этого дня. Мастер-ГПСЧ порождает уникальный seed для каждого дня.</p>
-
+  <pre class="code">go run ./cmd/sim -scenario default -seed 42 -orders 1000000 -daily daily.json</pre>
+  <p>Каждый день = <strong>независимый повтор</strong> эксперимента (1440 минут, сброс ресурсов). Мастер-ГПСЧ порождает уникальный seed для каждого дня.</p>
   <table>
-    <thead><tr><th>Сценарий</th><th>Заказов</th><th>Дней</th><th>Wall time</th><th>Заказов/сек</th></tr></thead>
+    <thead><tr><th>Сценарий</th><th>Изменение</th><th>Заказов</th><th>Дней</th><th>Wall time</th></tr></thead>
     <tbody>
-      <tr><td>Default</td><td>1 000 052</td><td>6 708</td><td><strong>610 мс</strong></td><td>~1 640 000</td></tr>
-      <tr><td>Peak</td><td>1 000 268</td><td>2 641</td><td><strong>628 мс</strong></td><td>~1 590 000</td></tr>
-      <tr><td>Chaos</td><td>1 000 052</td><td>6 708</td><td><strong>609 мс</strong></td><td>~1 640 000</td></tr>
-      <tr><td>Understaffed</td><td>1 000 052</td><td>6 708</td><td><strong>607 мс</strong></td><td>~1 650 000</td></tr>
+      <tr><td>Default</td><td>baseline (5 курьеров)</td><td>1 000 052</td><td>6 708</td><td>610 мс</td></tr>
+      <tr><td>Peak</td><td>&lambda;&times;2.5, 25 курьеров</td><td>1 000 268</td><td>2 641</td><td>628 мс</td></tr>
+      <tr><td>Chaos</td><td>&lambda;<sub>break</sub>&times;5, &sigma;<sub>tr</sub>&times;2</td><td>1 000 052</td><td>6 708</td><td>609 мс</td></tr>
+      <tr><td>Understaffed</td><td>8 курьеров</td><td>1 000 052</td><td>6 708</td><td>607 мс</td></tr>
     </tbody>
   </table>
 </div>
 
-<!-- SECTION 3 -->
+<!-- ══════════ SECTION 3 ══════════ -->
 <div class="section" id="s3">
-  <h2 class="section-title"><span class="num">3</span> Результаты моделирования</h2>
+  <h2 class="section-title"><span class="num">3</span> Агрегированные результаты</h2>
 
-  <h3 id="s3-default">3.1 Базовый сценарий (Default) &mdash; 1 000 052 заказа</h3>
-  <p>Конфигурация: 4 магазина, <strong>5 курьеров</strong>, 3 слота/магазин, seed=42.</p>
-
-  <div class="metric-grid">
-    <div class="metric-card"><div class="metric-value">100.6</div><div class="metric-label">мин &middot; ср. время доставки</div></div>
-    <div class="metric-card"><div class="metric-value">19.5</div><div class="metric-label">мин &middot; ср. время возврата</div></div>
-    <div class="metric-card"><div class="metric-value">67.6%</div><div class="metric-label">доля доставленных</div></div>
-    <div class="metric-card"><div class="metric-value">4.2</div><div class="metric-label">заказов / час / день</div></div>
-    <div class="metric-card"><div class="metric-value">80.6%</div><div class="metric-label">загрузка курьеров</div></div>
-    <div class="metric-card"><div class="metric-value">14.2%</div><div class="metric-label">загрузка сборки</div></div>
-    <div class="metric-card"><div class="metric-value">7.6%</div><div class="metric-label">SLA нарушений</div></div>
-    <div class="metric-card"><div class="metric-value">30.2%</div><div class="metric-label">доля возвратов</div></div>
-  </div>
-
+  <h3>3.1 Сравнение сценариев (итоговые средние)</h3>
   <table>
-    <thead><tr><th>Статус</th><th>Количество</th><th>Доля</th></tr></thead>
+    <thead><tr><th>Метрика</th><th>Default (5к)</th><th>Peak (25к)</th><th>Chaos (5к)</th><th>Understaffed (8к)</th></tr></thead>
     <tbody>
-      <tr><td><span style="color:var(--green)">&#10003;</span> DELIVERED</td><td>675 894</td><td>67.59%</td></tr>
-      <tr><td><span style="color:var(--red)">&times;</span> CANCELLED</td><td>22 192</td><td>2.22%</td></tr>
-      <tr><td><span style="color:var(--yellow)">&larr;</span> RESTOCKED</td><td>226 632</td><td>22.66%</td></tr>
-      <tr><td><span style="color:var(--red)">&#128465;</span> DISPOSED</td><td>75 334</td><td>7.53%</td></tr>
-    </tbody>
-  </table>
-
-  <h3 id="s3-scenarios">3.2 Сравнение сценариев</h3>
-  <table>
-    <thead><tr><th>Метрика</th><th>Default</th><th>Peak</th><th>Chaos</th><th>Understaffed</th></tr></thead>
-    <tbody>
-      <tr><td>Курьеров</td><td>5</td><td><strong>25</strong></td><td>5</td><td><strong>8</strong></td></tr>
       <tr><td>Ср. время доставки, мин</td><td>100.6</td><td><strong>42.5</strong></td><td>112.5</td><td>49.8</td></tr>
-      <tr><td>&sigma; времени доставки</td><td>95.6</td><td>46.0</td><td>104.6</td><td>51.0</td></tr>
       <tr><td>DELIVERED, %</td><td>67.6</td><td><strong>84.2</strong></td><td>62.9</td><td>82.6</td></tr>
-      <tr><td>CANCELLED, %</td><td>2.2</td><td>2.2</td><td>2.2</td><td>2.2</td></tr>
       <tr><td>RESTOCKED, %</td><td>22.7</td><td>10.2</td><td><strong>26.2</strong></td><td>11.4</td></tr>
       <tr><td>DISPOSED, %</td><td>7.5</td><td>3.4</td><td><strong>8.7</strong></td><td>3.8</td></tr>
       <tr><td>Загрузка курьеров, %</td><td><strong>80.6</strong></td><td>39.2</td><td><strong>87.7</strong></td><td>48.3</td></tr>
       <tr><td>Загрузка сборки, %</td><td>14.2</td><td><strong>36.2</strong></td><td>14.2</td><td>14.2</td></tr>
-      <tr><td>SLA нарушения, %</td><td>7.6</td><td>1.5</td><td><strong>9.2</strong></td><td>2.1</td></tr>
-      <tr><td>Ср. время возврата, мин</td><td>19.5</td><td>18.9</td><td><strong>21.6</strong></td><td>19.0</td></tr>
+      <tr><td>SLA breach, %</td><td>7.6</td><td>1.5</td><td><strong>9.2</strong></td><td>2.1</td></tr>
+      <tr><td>Express SLA breach, %</td><td>59.5</td><td>15.3</td><td><strong>65.7</strong></td><td>24.1</td></tr>
     </tbody>
   </table>
 
   <div class="scenario-grid">
-    <div class="scenario-card default">
-      <div class="sc-name">Default &mdash; 5 курьеров</div>
-      <p style="font-size:.85rem;color:var(--text)">Базовый сценарий &mdash; курьерский пул ограничен. Загрузка 80.6%, значительная часть заказов возвращается (22.7% restocked + 7.5% disposed). Ср. время доставки &gt;100 мин.</p>
-    </div>
-    <div class="scenario-card peak">
-      <div class="sc-name">Peak (&lambda;&times;2.5, 25 курьеров)</div>
-      <p style="font-size:.85rem;color:var(--text)">Нагрузка &times;2.5, но 25 курьеров. Результаты резко лучше: 84.2% доставлено, ср. время 42.5 мин, загрузка сборки 36.2%. Курьерский пул решает проблему.</p>
-    </div>
-    <div class="scenario-card chaos">
-      <div class="sc-name">Chaos (&lambda;<sub>break</sub>&times;5, &sigma;<sub>tr</sub>&times;2)</div>
-      <p style="font-size:.85rem;color:var(--text)">Поломки &times;5 + пробки &times;2 при 5 курьерах. Загрузка 87.7%, наихудший SLA breach 9.2%. Express SLA breach 65.7% &mdash; критично.</p>
-    </div>
-    <div class="scenario-card under">
-      <div class="sc-name">Understaffed (8 курьеров)</div>
-      <p style="font-size:.85rem;color:var(--text)">+3 курьера (8 vs 5) &mdash; уже заметное улучшение: 82.6% доставлено (vs 67.6%), ср. время 49.8 мин (vs 100.6). Загрузка курьеров 48.3% &mdash; комфортная зона.</p>
-    </div>
+    <div class="scenario-card default"><div class="sc-name">Default &mdash; 5 курьеров</div><p style="font-size:.85rem">Курьеры перегружены (80.6%). Доставка &gt;100 мин, 30% заказов возвращается. Express SLA breach 59.5%.</p></div>
+    <div class="scenario-card peak"><div class="sc-name">Peak &mdash; &lambda;&times;2.5, 25 курьеров</div><p style="font-size:.85rem">25 курьеров решают проблему: 84.2% доставлено, 42.5 мин. Загрузка сборки 36% &mdash; ещё есть запас.</p></div>
+    <div class="scenario-card chaos"><div class="sc-name">Chaos &mdash; поломки&times;5, пробки&times;2</div><p style="font-size:.85rem">Наихудший сценарий: 62.9% доставлено, курьеры 87.7%. Express SLA 65.7% &mdash; неприемлемо.</p></div>
+    <div class="scenario-card under"><div class="sc-name">Understaffed &mdash; 8 курьеров</div><p style="font-size:.85rem">+3 курьера vs default: 82.6% доставлено (vs 67.6%), время 49.8 мин (vs 100.6). Резкое улучшение.</p></div>
   </div>
 
-  <h3 id="s3-priority">3.3 Анализ по приоритетам (Default, 5 курьеров)</h3>
+  <h3>3.2 По приоритетам (Default)</h3>
   <table>
-    <thead><tr><th>Тип</th><th>Заказов</th><th>Доля</th><th>Доставлено</th><th>Ср. время, мин</th><th>SLA breach</th></tr></thead>
+    <thead><tr><th>Тип</th><th>Заказов</th><th>Доставлено</th><th>Ср. время</th><th>SLA breach</th></tr></thead>
     <tbody>
-      <tr><td><strong>standard</strong></td><td>749 594</td><td>75.0%</td><td>517 265 (69.0%)</td><td>104.8</td><td><strong>0.0%</strong></td></tr>
-      <tr><td><strong>same-day</strong></td><td>200 631</td><td>20.1%</td><td>129 285 (64.4%)</td><td>87.8</td><td>22.9%</td></tr>
-      <tr><td><strong>express</strong></td><td>49 827</td><td>5.0%</td><td>29 344 (58.9%)</td><td>82.0</td><td><strong>59.5%</strong></td></tr>
+      <tr><td>standard</td><td>749 594 (75%)</td><td>517 265 (69.0%)</td><td>104.8 мин</td><td><strong>0.0%</strong></td></tr>
+      <tr><td>same-day</td><td>200 631 (20%)</td><td>129 285 (64.4%)</td><td>87.8 мин</td><td>22.9%</td></tr>
+      <tr><td>express</td><td>49 827 (5%)</td><td>29 344 (58.9%)</td><td>82.0 мин</td><td><strong>59.5%</strong></td></tr>
     </tbody>
   </table>
-
-  <div class="callout warn">
-    <strong>Наблюдение:</strong> При 5 курьерах express SLA breach 59.5% &mdash; система не справляется. При 8 курьерах (understaffed) &mdash; 24.1%, при 25 (peak) &mdash; 15.3%. Ключевой фактор &mdash; количество курьеров.
-  </div>
 </div>
 
-<!-- SECTION 4 — DAILY ANALYSIS -->
+<!-- ══════════ SECTION 4 — STATISTICAL ANALYSIS ══════════ -->
 <div class="section" id="s4">
-  <h2 class="section-title"><span class="num">4</span> Анализ по дням (многократные независимые повторы)</h2>
-  <p>Каждый смоделированный день &mdash; это <strong>независимый повтор эксперимента</strong> со своим seed ГПСЧ, сброшенным состоянием ресурсов и инвентарём. После каждого дня фиксируется <code>DaySnapshot</code>: количество заказов, доля доставленных, среднее время доставки, % SLA breach, загрузка ресурсов.</p>
+  <h2 class="section-title"><span class="num">4</span> Статистический анализ по дням</h2>
+  <p>Каждый смоделированный день &mdash; <strong>независимый повтор</strong> эксперимента. Ниже &mdash; полный статистический анализ посуточных метрик: дисперсия, доверительные интервалы, гистограммы распределений, временные ряды и проверка правила 3&sigma;.</p>
 
-  <h3 id="s4-var">4.1 Вариация метрик по дням</h3>
-  <p>Таблица показывает распределение посуточных метрик (mean &plusmn; &sigma;, min, max) для каждого сценария:</p>
+  <h3 id="s4-var">4.1 Дисперсионный анализ и доверительные интервалы</h3>
+  <p>Для каждой метрики указаны: среднее (&mu;), стандартное отклонение (&sigma;), <strong>дисперсия</strong> (&sigma;&sup2;), границы 3&sigma;, <strong>95% доверительный интервал</strong> (CI&nbsp;=&nbsp;&plusmn;1.96&middot;SE, где SE&nbsp;=&nbsp;&sigma;/&radic;N).</p>
 
-  <h4 style="font-size:.85rem;color:var(--text-muted);text-transform:uppercase;margin:18px 0 8px">Default (N=6 708 дней)</h4>
+  <h4 class="sub">Default (N=6 708 дней, 5 курьеров)</h4>
   <table>
-    <thead><tr><th>Метрика</th><th>Mean</th><th>&sigma;</th><th>Min</th><th>Max</th></tr></thead>
+    <thead><tr><th>Метрика</th><th>Mean</th><th>&sigma;</th><th>&sigma;&sup2;</th><th>3&sigma; low</th><th>3&sigma; high</th><th>95% CI&nbsp;&plusmn;</th><th>Min</th><th>Max</th></tr></thead>
     <tbody>
-      <tr><td>Заказов/день</td><td>149.1</td><td>13.0</td><td>103</td><td>203</td></tr>
-      <tr><td>Delivered %</td><td>68.0</td><td>13.0</td><td>22.9</td><td>93.0</td></tr>
-      <tr><td>Avg delivery, мин</td><td>106.0</td><td>39.7</td><td>31.4</td><td>243.4</td></tr>
-      <tr><td>SLA breach %</td><td>7.4</td><td>5.0</td><td>0.0</td><td>27.3</td></tr>
-      <tr><td>Courier util %</td><td>80.6</td><td>15.5</td><td>34.3</td><td>146.1</td></tr>
-      <tr><td>Assembly util %</td><td>14.2</td><td>1.3</td><td>10.1</td><td>19.9</td></tr>
+      <tr><td>Заказов/день</td><td class="num">149.1</td><td class="num">13.0</td><td class="num">168.8</td><td class="num">110.1</td><td class="num">188.1</td><td class="num">0.311</td><td class="num">103.0</td><td class="num">203.0</td></tr>
+      <tr><td>Delivered %</td><td class="num">68.0</td><td class="num">13.0</td><td class="num">168.6</td><td class="num">29.0</td><td class="num">106.9</td><td class="num">0.311</td><td class="num">22.9</td><td class="num">93.0</td></tr>
+      <tr><td>Avg delivery, мин</td><td class="num">106.0</td><td class="num">39.7</td><td class="num">1578.4</td><td class="num">&minus;13.2</td><td class="num">225.2</td><td class="num">0.951</td><td class="num">31.4</td><td class="num">243.4</td></tr>
+      <tr><td>SLA breach %</td><td class="num">7.4</td><td class="num">5.0</td><td class="num">25.2</td><td class="num">&minus;7.6</td><td class="num">22.5</td><td class="num">0.120</td><td class="num">0.0</td><td class="num">27.3</td></tr>
+      <tr><td>Courier util %</td><td class="num">80.6</td><td class="num">15.5</td><td class="num">241.2</td><td class="num">34.0</td><td class="num">127.2</td><td class="num">0.372</td><td class="num">34.3</td><td class="num">146.1</td></tr>
+      <tr><td>Assembly util %</td><td class="num">14.2</td><td class="num">1.3</td><td class="num">1.6</td><td class="num">10.4</td><td class="num">18.1</td><td class="num">0.031</td><td class="num">10.1</td><td class="num">19.9</td></tr>
     </tbody>
   </table>
 
-  <h4 style="font-size:.85rem;color:var(--text-muted);text-transform:uppercase;margin:18px 0 8px">Peak (N=2 641 дней)</h4>
+  <h4 class="sub">Peak (N=2 641 дней, 25 курьеров)</h4>
   <table>
-    <thead><tr><th>Метрика</th><th>Mean</th><th>&sigma;</th><th>Min</th><th>Max</th></tr></thead>
+    <thead><tr><th>Метрика</th><th>Mean</th><th>&sigma;</th><th>&sigma;&sup2;</th><th>3&sigma; low</th><th>3&sigma; high</th><th>95% CI&nbsp;&plusmn;</th><th>Min</th><th>Max</th></tr></thead>
     <tbody>
-      <tr><td>Заказов/день</td><td>378.7</td><td>19.7</td><td>309</td><td>453</td></tr>
-      <tr><td>Delivered %</td><td>84.2</td><td>2.0</td><td>76.4</td><td>90.5</td></tr>
-      <tr><td>Avg delivery, мин</td><td>42.5</td><td>3.1</td><td>34.1</td><td>56.7</td></tr>
-      <tr><td>SLA breach %</td><td>1.5</td><td>0.7</td><td>0.0</td><td>4.2</td></tr>
-      <tr><td>Courier util %</td><td>39.2</td><td>4.4</td><td>26.2</td><td>56.2</td></tr>
-      <tr><td>Assembly util %</td><td>36.2</td><td>2.0</td><td>29.0</td><td>43.6</td></tr>
+      <tr><td>Заказов/день</td><td class="num">378.7</td><td class="num">19.7</td><td class="num">387.4</td><td class="num">319.7</td><td class="num">437.8</td><td class="num">0.751</td><td class="num">309.0</td><td class="num">453.0</td></tr>
+      <tr><td>Delivered %</td><td class="num">84.2</td><td class="num">2.0</td><td class="num">3.9</td><td class="num">78.2</td><td class="num">90.1</td><td class="num">0.076</td><td class="num">76.4</td><td class="num">90.5</td></tr>
+      <tr><td>Avg delivery, мин</td><td class="num">42.5</td><td class="num">3.1</td><td class="num">9.8</td><td class="num">33.1</td><td class="num">51.8</td><td class="num">0.119</td><td class="num">34.1</td><td class="num">56.7</td></tr>
+      <tr><td>SLA breach %</td><td class="num">1.5</td><td class="num">0.7</td><td class="num">0.4</td><td class="num">&minus;0.4</td><td class="num">3.5</td><td class="num">0.025</td><td class="num">0.0</td><td class="num">4.2</td></tr>
+      <tr><td>Courier util %</td><td class="num">39.2</td><td class="num">4.4</td><td class="num">18.9</td><td class="num">26.2</td><td class="num">52.2</td><td class="num">0.166</td><td class="num">26.2</td><td class="num">56.2</td></tr>
+      <tr><td>Assembly util %</td><td class="num">36.2</td><td class="num">2.0</td><td class="num">3.8</td><td class="num">30.3</td><td class="num">42.0</td><td class="num">0.074</td><td class="num">29.0</td><td class="num">43.6</td></tr>
     </tbody>
   </table>
 
-  <h4 style="font-size:.85rem;color:var(--text-muted);text-transform:uppercase;margin:18px 0 8px">Chaos (N=6 708 дней)</h4>
+  <h4 class="sub">Chaos (N=6 708 дней, 5 курьеров, поломки&times;5)</h4>
   <table>
-    <thead><tr><th>Метрика</th><th>Mean</th><th>&sigma;</th><th>Min</th><th>Max</th></tr></thead>
+    <thead><tr><th>Метрика</th><th>Mean</th><th>&sigma;</th><th>&sigma;&sup2;</th><th>3&sigma; low</th><th>3&sigma; high</th><th>95% CI&nbsp;&plusmn;</th><th>Min</th><th>Max</th></tr></thead>
     <tbody>
-      <tr><td>Заказов/день</td><td>149.1</td><td>13.0</td><td>103</td><td>203</td></tr>
-      <tr><td>Delivered %</td><td>63.3</td><td>14.1</td><td>20.5</td><td>91.5</td></tr>
-      <tr><td>Avg delivery, мин</td><td>118.5</td><td>39.2</td><td>33.4</td><td>254.7</td></tr>
-      <tr><td>SLA breach %</td><td>9.0</td><td>5.3</td><td>0.0</td><td>28.5</td></tr>
-      <tr><td>Courier util %</td><td>87.7</td><td>16.8</td><td>34.7</td><td>153.3</td></tr>
-      <tr><td>Assembly util %</td><td>14.2</td><td>1.3</td><td>9.8</td><td>19.6</td></tr>
+      <tr><td>Заказов/день</td><td class="num">149.1</td><td class="num">13.0</td><td class="num">168.8</td><td class="num">110.1</td><td class="num">188.1</td><td class="num">0.311</td><td class="num">103.0</td><td class="num">203.0</td></tr>
+      <tr><td>Delivered %</td><td class="num">63.3</td><td class="num">14.1</td><td class="num">198.9</td><td class="num">21.0</td><td class="num">105.7</td><td class="num">0.338</td><td class="num">20.5</td><td class="num">91.5</td></tr>
+      <tr><td>Avg delivery, мин</td><td class="num">118.5</td><td class="num">39.2</td><td class="num">1533.2</td><td class="num">1.0</td><td class="num">236.0</td><td class="num">0.937</td><td class="num">33.4</td><td class="num">254.7</td></tr>
+      <tr><td>SLA breach %</td><td class="num">9.0</td><td class="num">5.3</td><td class="num">28.2</td><td class="num">&minus;6.9</td><td class="num">25.0</td><td class="num">0.127</td><td class="num">0.0</td><td class="num">28.5</td></tr>
+      <tr><td>Courier util %</td><td class="num">87.7</td><td class="num">16.8</td><td class="num">283.7</td><td class="num">37.2</td><td class="num">138.2</td><td class="num">0.403</td><td class="num">34.7</td><td class="num">153.3</td></tr>
+      <tr><td>Assembly util %</td><td class="num">14.2</td><td class="num">1.3</td><td class="num">1.6</td><td class="num">10.4</td><td class="num">18.1</td><td class="num">0.031</td><td class="num">9.8</td><td class="num">19.6</td></tr>
     </tbody>
   </table>
 
-  <h4 style="font-size:.85rem;color:var(--text-muted);text-transform:uppercase;margin:18px 0 8px">Understaffed (N=6 708 дней)</h4>
+  <h4 class="sub">Understaffed (N=6 708 дней, 8 курьеров)</h4>
   <table>
-    <thead><tr><th>Метрика</th><th>Mean</th><th>&sigma;</th><th>Min</th><th>Max</th></tr></thead>
+    <thead><tr><th>Метрика</th><th>Mean</th><th>&sigma;</th><th>&sigma;&sup2;</th><th>3&sigma; low</th><th>3&sigma; high</th><th>95% CI&nbsp;&plusmn;</th><th>Min</th><th>Max</th></tr></thead>
     <tbody>
-      <tr><td>Заказов/день</td><td>149.1</td><td>13.0</td><td>103</td><td>203</td></tr>
-      <tr><td>Delivered %</td><td>82.6</td><td>4.1</td><td>59.0</td><td>94.2</td></tr>
-      <tr><td>Avg delivery, мин</td><td>49.9</td><td>12.7</td><td>28.4</td><td>182.7</td></tr>
-      <tr><td>SLA breach %</td><td>2.1</td><td>1.5</td><td>0.0</td><td>13.5</td></tr>
-      <tr><td>Courier util %</td><td>48.3</td><td>8.6</td><td>21.5</td><td>81.8</td></tr>
-      <tr><td>Assembly util %</td><td>14.2</td><td>1.3</td><td>10.1</td><td>19.1</td></tr>
+      <tr><td>Заказов/день</td><td class="num">149.1</td><td class="num">13.0</td><td class="num">168.8</td><td class="num">110.1</td><td class="num">188.1</td><td class="num">0.311</td><td class="num">103.0</td><td class="num">203.0</td></tr>
+      <tr><td>Delivered %</td><td class="num">82.6</td><td class="num">4.1</td><td class="num">16.8</td><td class="num">70.3</td><td class="num">94.9</td><td class="num">0.098</td><td class="num">59.0</td><td class="num">94.2</td></tr>
+      <tr><td>Avg delivery, мин</td><td class="num">49.9</td><td class="num">12.7</td><td class="num">160.7</td><td class="num">11.9</td><td class="num">87.9</td><td class="num">0.303</td><td class="num">28.4</td><td class="num">182.7</td></tr>
+      <tr><td>SLA breach %</td><td class="num">2.1</td><td class="num">1.5</td><td class="num">2.2</td><td class="num">&minus;2.4</td><td class="num">6.6</td><td class="num">0.036</td><td class="num">0.0</td><td class="num">13.5</td></tr>
+      <tr><td>Courier util %</td><td class="num">48.3</td><td class="num">8.6</td><td class="num">73.7</td><td class="num">22.6</td><td class="num">74.1</td><td class="num">0.205</td><td class="num">21.5</td><td class="num">81.8</td></tr>
+      <tr><td>Assembly util %</td><td class="num">14.2</td><td class="num">1.3</td><td class="num">1.6</td><td class="num">10.4</td><td class="num">18.1</td><td class="num">0.031</td><td class="num">10.1</td><td class="num">19.1</td></tr>
     </tbody>
   </table>
 
   <div class="callout">
-    <strong>Наблюдение:</strong> Peak-сценарий (25 курьеров, &lambda;&times;2.5) показывает <em>наименьшую</em> вариацию: &sigma;(delivered)=2.0% vs 13.0% у default. Большой пул курьеров стабилизирует систему. Default и Chaos с 5 курьерами показывают высокую дневную вариацию &mdash; отдельные дни с delivered% ниже 25%.
+    <strong>Точность оценки:</strong> 95% CI для &laquo;Delivered %&raquo; в Default: 68.0 &plusmn; 0.31%. В Peak: 84.2 &plusmn; 0.08%. Доверительные интервалы узкие благодаря большому N &mdash; оценки высоко точны.
   </div>
 
-  <h3 id="s4-charts">4.2 Графики: динамика по дням</h3>
-  <p>Скользящее среднее за 50 дней. Каждая точка &mdash; среднее метрики за окно из 50 последовательных независимых дней.</p>
+  <!-- ══════════ HISTOGRAMS ══════════ -->
+  <h3 id="s4-hist">4.2 Гистограммы распределений посуточных метрик</h3>
+  <p>Гистограммы показывают эмпирическое распределение посуточных значений. По ЦПТ, суммарные метрики дня (среднее ~150 заказов) должны стремиться к нормальному распределению.</p>
 
-  <div class="chart-wrap">
-    <h4 style="font-size:.85rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:12px">Среднее время доставки (мин) — все сценарии</h4>
-    <canvas id="chartDelivery"></canvas>
+  <div class="chart-grid">
+    <div class="chart-wrap">
+      <h4 class="sub" style="margin:0 0 12px">Распределение: Delivered % (Default)</h4>
+      <canvas id="histDelivDefault"></canvas>
+    </div>
+    <div class="chart-wrap">
+      <h4 class="sub" style="margin:0 0 12px">Распределение: Courier util % (Default)</h4>
+      <canvas id="histCourDefault"></canvas>
+    </div>
   </div>
 
   <div class="chart-grid">
     <div class="chart-wrap">
-      <h4 style="font-size:.85rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:12px">Доля доставленных (%) — все сценарии</h4>
-      <canvas id="chartDelivered"></canvas>
+      <h4 class="sub" style="margin:0 0 12px">Распределение: Avg delivery мин (Default)</h4>
+      <canvas id="histDelivTimeDefault"></canvas>
     </div>
     <div class="chart-wrap">
-      <h4 style="font-size:.85rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:12px">SLA breach (%) — все сценарии</h4>
-      <canvas id="chartSLA"></canvas>
+      <h4 class="sub" style="margin:0 0 12px">Распределение: SLA breach % (Default)</h4>
+      <canvas id="histSLADefault"></canvas>
+    </div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-wrap">
+      <h4 class="sub" style="margin:0 0 12px">Delivered % — сравнение сценариев</h4>
+      <canvas id="histDelivAll"></canvas>
+    </div>
+    <div class="chart-wrap">
+      <h4 class="sub" style="margin:0 0 12px">Courier util % — сравнение сценариев</h4>
+      <canvas id="histCourAll"></canvas>
+    </div>
+  </div>
+
+  <!-- ══════════ TIME SERIES ══════════ -->
+  <h3 id="s4-ts">4.3 Временные ряды (скользящее среднее за 50 дней)</h3>
+
+  <div class="chart-wrap">
+    <h4 class="sub" style="margin:0 0 12px">Среднее время доставки (мин) — все сценарии</h4>
+    <canvas id="tsDelivery"></canvas>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-wrap">
+      <h4 class="sub" style="margin:0 0 12px">Доля доставленных (%) — все сценарии</h4>
+      <canvas id="tsDelivered"></canvas>
+    </div>
+    <div class="chart-wrap">
+      <h4 class="sub" style="margin:0 0 12px">SLA breach (%) — все сценарии</h4>
+      <canvas id="tsSLA"></canvas>
     </div>
   </div>
 
   <div class="chart-wrap">
-    <h4 style="font-size:.85rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:12px">Загрузка курьеров (%) — все сценарии</h4>
-    <canvas id="chartCourier"></canvas>
+    <h4 class="sub" style="margin:0 0 12px">Загрузка курьеров (%) — все сценарии</h4>
+    <canvas id="tsCourier"></canvas>
   </div>
 
-  <h3 id="s4-conv">4.3 Сходимость средних</h3>
-  <p>Графики наглядно показывают, что посуточные средние <strong>стабильны и стационарны</strong>: нет тренда (ни роста, ни убывания) &mdash; все метрики колеблются вокруг своего среднего. Это подтверждает, что:</p>
-  <ul style="margin:8px 0 16px 24px">
-    <li>Каждый день &mdash; действительно независимый повтор</li>
-    <li>1 000 000 заказов (~6 700 дней) достаточно для репрезентативной оценки</li>
-    <li>Финальные средние &mdash; надёжные оценки истинных значений</li>
-  </ul>
+  <!-- ══════════ 3-SIGMA ══════════ -->
+  <h3 id="s4-norm">4.4 Проверка нормальности и правило 3&sigma;</h3>
+  <p>Для нормального распределения 99.73% значений лежат в интервале [&mu;&minus;3&sigma;, &mu;+3&sigma;]. Проверим:</p>
+  <table>
+    <thead><tr><th>Метрика (Default)</th><th>&mu;&minus;3&sigma;</th><th>&mu;+3&sigma;</th><th>Min факт</th><th>Max факт</th><th>Выход?</th></tr></thead>
+    <tbody>
+      <tr><td>Заказов/день</td><td class="num">110.1</td><td class="num">188.1</td><td class="num">103.0</td><td class="num">203.0</td><td style="color:var(--yellow)">&#9888; редкие выбросы</td></tr>
+      <tr><td>Delivered %</td><td class="num">29.0</td><td class="num">106.9</td><td class="num">22.9</td><td class="num">93.0</td><td style="color:var(--yellow)">&#9888; left tail</td></tr>
+      <tr><td>Avg delivery</td><td class="num">&minus;13.2</td><td class="num">225.2</td><td class="num">31.4</td><td class="num">243.4</td><td style="color:var(--yellow)">&#9888; right tail</td></tr>
+      <tr><td>Courier util %</td><td class="num">34.0</td><td class="num">127.2</td><td class="num">34.3</td><td class="num">146.1</td><td style="color:var(--yellow)">&#9888; right tail</td></tr>
+      <tr><td>Assembly util %</td><td class="num">10.4</td><td class="num">18.1</td><td class="num">10.1</td><td class="num">19.9</td><td style="color:var(--yellow)">&#9888; редкие</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout warn">
+    <strong>Вывод про нормальность:</strong> Посуточные метрики в Default (5 курьеров) имеют<em> тяжёлые хвосты</em> и <em>лёгкую асимметрию</em> — не строго нормальные. Это объяснимо: курьерская загрузка &gt;100% (очередь!) и Delivered% ограничены сверху. Гистограммы подтверждают: распределения колоколообразны, но со скосом.
+  </div>
+
+  <p>В Peak-сценарии (25 курьеров, N=2641) ситуация лучше:</p>
+  <table>
+    <thead><tr><th>Метрика (Peak)</th><th>&mu;&minus;3&sigma;</th><th>&mu;+3&sigma;</th><th>Min</th><th>Max</th><th>Вердикт</th></tr></thead>
+    <tbody>
+      <tr><td>Delivered %</td><td class="num">78.2</td><td class="num">90.1</td><td class="num">76.4</td><td class="num">90.5</td><td style="color:var(--green)">&#10003; ~норм</td></tr>
+      <tr><td>Avg delivery</td><td class="num">33.1</td><td class="num">51.8</td><td class="num">34.1</td><td class="num">56.7</td><td style="color:var(--yellow)">&#9888; right tail</td></tr>
+      <tr><td>Courier util %</td><td class="num">26.2</td><td class="num">52.2</td><td class="num">26.2</td><td class="num">56.2</td><td style="color:var(--yellow)">&#9888; right tail</td></tr>
+    </tbody>
+  </table>
 
   <div class="callout success">
-    <strong>Доверительный интервал (Default, Delivered %):</strong> mean=68.0%, &sigma;=13.0%, N=6708 &rArr; SE=0.16% &rArr; 95% CI = [67.7%, 68.3%]. Высокая точность оценки благодаря большому числу повторов.
+    <strong>Итого:</strong> При достаточном пуле курьеров (Peak) распределения ближе к нормальному. В стрессовых сценариях (Default 5к, Chaos) наблюдается правый скос из-за перегрузки курьеров &mdash; система нелинейна вблизи предела мощности. Все CI &lt; 1% от среднего &mdash; оценки высокоточные.
   </div>
 </div>
 
-<!-- SECTION 5 — PRESENTATION -->
+<!-- ══════════ SECTION 5 ══════════ -->
 <div class="section" id="s5">
   <h2 class="section-title"><span class="num">5</span> Презентация программы</h2>
-
   <pre class="code">EcomSupplySim/
-├── cmd/sim/main.go          # CLI: флаги, вывод результатов + вариация по дням
+├── cmd/sim/main.go          # CLI + вариация по дням (mean/σ/σ²/3σ/CI)
 ├── internal/
-│   ├── rng/rng.go           # ГПСЧ xoshiro256** + 7 распределений
-│   └── sim/sim.go           # Движок + DaySnapshot (посуточные снимки)
-├── docs/
-│   ├── lab1/report.html     # Отчёт ПР №1 (модель)
-│   └── lab2/report.html     # Отчёт ПР №2 (программа) ← этот файл
-└── go.mod                   # Go 1.23 module</pre>
-
-  <pre class="code"># Запуск
-go build ./cmd/sim/
-./sim -scenario default -seed 42 -orders 1000000
-
-# Экспорт посуточного JSON
-./sim -scenario default -daily daily_default.json
-
-# Все сценарии
-./sim -scenario peak
-./sim -scenario chaos
-./sim -scenario understaffed</pre>
+│   ├── rng/rng.go           # xoshiro256** + 7 распределений
+│   └── sim/sim.go           # Движок + DaySnapshot
+├── docs/lab2/report.html    # Этот отчёт (Chart.js графики + гистограммы)
+└── go.mod</pre>
 
   <div class="callout success">
-    <strong>Требования ПР&nbsp;№2 выполнены:</strong><br>
+    <strong>Требования ПР&nbsp;№2:</strong><br>
     ✓ Собственный ГПСЧ (xoshiro256**)<br>
     ✓ Генерация распределений по методам лекции 2<br>
-    ✓ 6 блоков с &ge;3 распределениями<br>
-    ✓ 1 000 000 испытаний за &lt;650 мс<br>
-    ✓ <strong>Многократные независимые повторы (дни): таблицы mean&plusmn;&sigma; + графики динамики</strong><br>
-    ✓ 4 сценария + анализ по приоритетам
+    ✓ 6 блоков, &ge;3 распределения<br>
+    ✓ 1 000 000 испытаний, &lt;650 мс<br>
+    ✓ <strong>Многократные независимые повторы (6 708 дней)</strong><br>
+    ✓ <strong>Дисперсия, 3&sigma;, 95% CI</strong> для всех метрик<br>
+    ✓ <strong>Гистограммы распределений</strong> посуточных метрик<br>
+    ✓ Временные ряды (стационарность)<br>
+    ✓ Проверка нормальности (правило 3&sigma;)
   </div>
 </div>
 
-<!-- FOOTER -->
 <div class="footer">
   <span>Практическая работа №2 &middot; Имитационное моделирование &middot; ИТМО 2026</span>
   <span>EcomSupplySim &middot; Go 1.23 &middot; Вариант 6</span>
@@ -446,38 +403,93 @@ go build ./cmd/sim/
 
 </div>
 
-<!-- CHART DATA + RENDERING -->
+<!-- ══════════ DATA + CHARTS ══════════ -->
 <script>
 const DAILY_DATA = {"default":{"labels":[50,100,150,200,250,300,350,400,450,500,550,600,650,700,750,800,850,900,950,1000,1050,1100,1150,1200,1250,1300,1350,1400,1450,1500,1550,1600,1650,1700,1750,1800,1850,1900,1950,2000,2050,2100,2150,2200,2250,2300,2350,2400,2450,2500,2550,2600,2650,2700,2750,2800,2850,2900,2950,3000,3050,3100,3150,3200,3250,3300,3350,3400,3450,3500,3550,3600,3650,3700,3750,3800,3850,3900,3950,4000,4050,4100,4150,4200,4250,4300,4350,4400,4450,4500,4550,4600,4650,4700,4750,4800,4850,4900,4950,5000,5050,5100,5150,5200,5250,5300,5350,5400,5450,5500,5550,5600,5650,5700,5750,5800,5850,5900,5950,6000,6050,6100,6150,6200,6250,6300,6350,6400,6450,6500,6550,6600,6650,6700],"avgDelivery":[107.9,102.8,105.6,96.5,97.9,100.0,98.0,110.9,112.1,113.5,110.2,103.2,108.9,102.5,100.1,104.5,111.8,111.8,101.5,106.1,108.4,103.7,107.9,109.5,109.4,100.6,102.1,107.0,107.5,110.2,101.7,104.5,101.9,101.4,105.4,113.2,107.5,110.4,105.4,115.9,104.3,100.6,107.5,117.1,101.1,106.3,103.6,102.3,103.7,100.9,106.0,111.6,101.0,100.4,104.3,94.0,100.9,109.0,111.4,103.9,104.6,100.9,108.7,107.7,115.0,106.7,101.7,124.3,99.2,121.2,109.1,101.0,96.4,110.5,97.9,106.8,100.1,111.9,109.2,113.3,95.5,105.4,119.9,106.0,108.2,103.5,107.1,103.9,109.4,103.6,110.8,110.1,106.1,114.7,103.9,105.1,114.0,103.4,104.2,93.9,106.6,105.0,112.6,111.9,107.1,112.3,109.6,107.5,97.0,102.7,101.2,113.1,112.5,115.5,110.4,102.6,108.5,95.7,103.9,104.1,106.1,101.4,98.4,98.4,110.5,109.2,104.3,102.9,105.6,113.1,105.6,104.2,101.2,100.4,118.8],"deliveredPct":[69.2,69.1,68.5,72.0,70.3,68.9,70.3,67.0,66.1,67.5,65.3,69.0,66.3,67.1,69.6,67.3,65.2,66.9,69.2,65.9,68.2,69.9,67.3,68.1,66.7,70.0,67.6,67.4,67.4,66.0,70.4,68.4,68.8,69.1,66.6,64.6,66.1,64.6,68.3,64.8,68.1,69.4,67.0,65.0,69.8,68.0,68.4,68.5,68.7,69.3,67.4,67.2,68.7,69.3,69.1,72.8,69.9,68.4,67.7,68.6,69.6,70.2,67.4,70.0,66.4,68.4,68.3,64.8,70.7,63.3,68.4,70.3,68.0,67.4,70.7,68.1,70.2,66.4,66.8,63.6,70.1,68.4,64.5,67.0,68.2,68.0,67.7,69.5,67.4,68.8,66.5,67.9,67.7,67.6,67.1,68.8,64.1,69.2,67.3,70.8,67.3,68.7,66.3,64.5,67.4,66.7,66.4,67.1,68.9,69.1,68.6,66.2,64.7,65.1,67.8,69.6,68.1,71.2,69.2,68.9,69.3,70.0,71.1,69.6,66.4,67.1,68.0,67.8,69.6,66.2,67.8,68.2,68.6,70.2,63.3],"slaBreachPct":[7.4,6.6,7.3,6.3,7.1,6.9,6.6,7.8,8.0,8.0,8.5,6.6,8.3,7.6,6.5,7.6,8.0,7.8,6.9,7.7,7.7,6.9,7.1,6.9,7.5,6.5,7.4,8.0,7.5,8.3,6.3,7.2,7.6,7.0,8.1,8.6,7.5,9.0,7.2,8.7,7.6,7.0,8.4,8.1,6.9,7.5,7.4,7.1,7.1,7.0,7.2,8.1,6.8,7.3,7.1,5.8,6.6,7.9,7.9,7.3,6.5,6.7,8.0,6.9,8.2,7.4,7.0,8.3,6.5,9.2,7.6,6.4,7.0,7.4,6.6,7.6,6.3,7.8,7.8,8.6,6.5,6.9,8.4,8.1,7.3,7.1,7.6,7.0,7.3,7.1,7.8,7.9,7.3,7.8,8.0,7.5,8.5,7.1,7.7,6.3,7.4,7.4,8.3,8.4,7.1,8.0,8.4,7.1,6.7,6.7,7.2,7.7,8.9,8.9,7.6,6.8,7.7,6.5,6.9,7.0,7.0,7.1,6.9,7.0,7.5,7.5,7.4,7.7,7.5,8.6,7.7,6.6,7.2,6.5,8.3],"courierUtil":[78.2,79.7,80.5,77.1,76.7,79.1,77.9,81.6,83.6,81.6,84.6,80.1,83.1,80.3,80.4,80.6,83.8,80.5,77.8,82.5,81.5,78.3,79.7,79.0,82.4,78.9,82.1,80.0,80.7,82.1,76.1,80.9,80.8,78.9,81.0,84.4,80.7,84.1,80.3,83.0,80.4,80.4,82.6,83.0,77.8,79.3,80.0,79.6,79.9,79.3,81.4,81.6,80.8,78.6,79.1,75.3,80.2,79.7,80.1,80.4,78.7,79.3,82.1,79.3,82.9,81.5,78.2,85.7,75.2,86.3,78.6,78.0,80.9,81.2,79.0,82.1,77.6,82.3,80.7,83.9,77.1,81.2,84.5,80.8,80.2,81.4,80.7,79.1,80.0,79.2,84.2,82.6,80.7,82.0,82.5,80.9,84.0,80.0,83.6,76.2,81.0,77.6,80.8,83.2,81.1,81.9,81.3,82.5,78.9,80.0,80.7,82.5,84.7,83.8,81.1,79.8,82.4,77.9,79.0,79.9,80.2,79.6,76.3,80.0,80.6,82.3,80.9,81.0,79.7,82.7,79.7,78.7,81.0,77.1,81.7]},"peak":{"labels":[50,100,150,200,250,300,350,400,450,500,550,600,650,700,750,800,850,900,950,1000,1050,1100,1150,1200,1250,1300,1350,1400,1450,1500,1550,1600,1650,1700,1750,1800,1850,1900,1950,2000,2050,2100,2150,2200,2250,2300,2350,2400,2450,2500,2550,2600],"avgDelivery":[41.7,41.8,42.8,42.5,41.9,43.4,42.8,42.5,42.6,42.6,42.1,42.8,41.5,42.4,42.5,41.8,43.0,42.7,42.6,42.2,42.1,41.8,42.2,43.0,42.7,43.0,42.8,42.3,42.0,42.8,42.9,42.3,42.6,42.8,42.0,42.0,42.3,43.4,42.7,42.7,42.4,42.2,41.7,42.3,42.8,42.4,42.6,42.6,42.7,42.6,42.1,42.4,42.6],"deliveredPct":[84.7,84.3,84.3,84.7,84.4,84.2,84.6,84.0,84.6,84.4,83.9,84.1,84.1,84.2,83.8,84.1,83.9,83.9,83.8,84.5,84.5,84.5,83.8,84.6,84.1,84.5,84.2,84.2,84.2,84.0,83.8,84.1,84.3,84.2,84.1,84.6,83.5,83.5,84.0,84.1,83.8,84.4,84.3,84.4,84.8,84.2,84.1,84.1,83.8,83.7,84.0,84.1,83.6],"slaBreachPct":[1.5,1.6,1.5,1.4,1.4,1.5,1.4,1.6,1.5,1.5,1.5,1.5,1.6,1.5,1.7,1.6,1.6,1.4,1.6,1.6,1.4,1.4,1.5,1.5,1.4,1.4,1.5,1.6,1.5,1.5,1.5,1.5,1.6,1.5,1.5,1.5,1.5,1.7,1.7,1.7,1.7,1.5,1.6,1.5,1.6,1.6,1.6,1.4,1.6,1.6,1.5,1.7,1.8],"courierUtil":[38.7,37.9,39.6,39.0,38.0,39.6,38.6,39.4,38.5,40.0,38.9,39.0,39.0,39.2,39.6,38.7,39.9,38.8,39.8,38.9,38.9,37.5,39.4,38.8,39.9,39.1,38.7,39.4,38.0,39.6,40.3,39.0,39.3,39.5,38.9,38.5,40.0,40.5,39.3,39.6,38.7,39.3,38.3,39.5,39.5,39.9,39.0,39.4,39.3,40.2,39.5,39.0,39.9]},"chaos":{"labels":[50,100,150,200,250,300,350,400,450,500,550,600,650,700,750,800,850,900,950,1000,1050,1100,1150,1200,1250,1300,1350,1400,1450,1500,1550,1600,1650,1700,1750,1800,1850,1900,1950,2000,2050,2100,2150,2200,2250,2300,2350,2400,2450,2500,2550,2600,2650,2700,2750,2800,2850,2900,2950,3000,3050,3100,3150,3200,3250,3300,3350,3400,3450,3500,3550,3600,3650,3700,3750,3800,3850,3900,3950,4000,4050,4100,4150,4200,4250,4300,4350,4400,4450,4500,4550,4600,4650,4700,4750,4800,4850,4900,4950,5000,5050,5100,5150,5200,5250,5300,5350,5400,5450,5500,5550,5600,5650,5700,5750,5800,5850,5900,5950,6000,6050,6100,6150,6200,6250,6300,6350,6400,6450,6500,6550,6600,6650,6700],"avgDelivery":[121.3,123.5,116.8,103.7,108.8,117.2,107.5,122.2,125.0,122.7,124.1,113.6,125.8,122.3,118.5,113.7,122.1,120.3,121.5,116.0,122.7,114.2,120.1,117.2,119.7,115.3,112.4,118.0,117.1,119.6,116.9,119.1,125.4,119.5,122.9,121.6,118.2,117.2,119.5,133.8,116.9,114.6,117.4,128.3,116.1,122.4,118.1,115.6,111.7,111.9,115.3,119.1,119.7,111.7,117.1,109.7,121.4,123.6,121.1,120.2,118.0,119.0,117.3,115.2,127.7,115.6,114.6,140.0,110.1,124.1,119.8,115.9,111.0,121.5,117.1,122.1,109.6,127.4,121.4,123.1,110.8,113.3,130.1,117.4,120.5,114.0,124.5,112.7,117.9,112.5,121.8,123.3,116.8,124.6,120.5,122.9,116.4,116.5,120.0,111.1,118.7,116.5,125.0,115.9,122.3,119.5,126.2,114.8,109.3,116.1,113.9,129.6,127.9,126.5,119.3,111.4,115.8,113.9,114.9,120.9,117.0,111.0,106.9,121.3,127.5,118.2,115.5,119.4,106.7,123.7,119.3,118.7,112.9,117.7,116.9],"deliveredPct":[63.8,62.2,64.8,68.1,66.8,61.9,66.9,63.1,61.4,62.1,60.0,65.8,59.1,61.5,62.5,64.9,61.5,63.6,63.4,62.5,60.1,64.2,63.4,62.7,63.0,65.4,65.3,64.9,63.0,62.7,63.9,65.1,61.6,64.3,60.5,62.5,63.0,63.3,65.0,58.7,63.4,64.4,62.9,60.8,63.8,62.5,63.4,63.2,64.6,64.2,63.8,63.6,62.9,64.8,63.3,68.3,63.1,64.5,63.4,63.7,64.6,64.2,63.1,65.4,61.7,63.3,64.1,59.0,67.2,62.3,62.2,64.1,64.6,61.6,63.5,62.4,66.0,62.6,63.1,59.7,64.0,63.6,57.9,63.5,63.9,65.8,62.1,65.7,63.4,65.9,61.5,61.3,63.5,62.4,62.2,62.3,62.3,63.2,63.3,65.0,61.8,64.7,61.0,61.7,60.4,63.4,61.7,64.5,65.1,63.5,64.1,60.9,60.8,59.8,63.0,66.0,65.4,66.4,64.6,62.7,65.5,67.0,67.5,64.1,60.4,62.9,65.0,61.4,66.8,60.8,62.3,63.3,64.8,64.7,58.0],"slaBreachPct":[9.2,9.3,8.6,7.6,7.7,9.4,7.4,9.2,10.0,10.0,10.2,8.1,10.3,9.4,9.7,8.5,9.2,9.3,9.5,8.8,10.5,8.1,8.7,8.4,8.6,8.3,8.0,9.0,9.1,9.6,8.4,8.6,10.1,8.6,10.5,9.9,8.5,9.0,8.4,11.4,9.2,8.9,9.9,10.0,9.0,9.0,8.8,8.8,8.3,9.1,8.3,9.3,9.1,8.9,9.2,7.2,9.1,9.5,9.1,8.3,8.3,8.8,9.1,8.6,10.0,9.1,8.8,10.8,7.9,9.5,9.5,8.6,8.4,9.2,9.3,9.6,7.8,9.7,9.2,10.2,8.6,8.6,10.2,9.0,8.8,7.9,9.9,8.5,8.6,8.3,9.7,9.9,8.9,9.2,10.3,9.4,9.3,9.0,9.2,8.3,9.0,8.4,10.3,9.3,9.4,9.1,10.0,8.8,8.4,8.8,8.2,9.6,9.7,10.8,9.2,7.8,8.7,8.2,8.5,9.2,8.5,8.1,7.5,9.0,9.8,8.9,8.4,9.9,8.4,10.2,9.3,8.7,8.2,8.6,9.9],"courierUtil":[84.5,89.5,85.4,83.5,82.9,88.6,83.5,87.6,89.8,88.9,91.9,86.3,92.9,88.9,89.3,85.4,89.4,87.6,86.6,89.3,90.6,87.9,86.8,86.8,87.8,85.9,85.6,85.3,85.9,88.4,85.5,85.7,89.5,87.6,91.2,90.1,86.3,88.9,88.2,91.5,87.3,88.5,89.5,89.9,84.7,88.8,87.5,87.6,84.6,87.6,86.3,87.4,90.2,85.9,88.2,83.0,88.2,86.2,87.5,88.0,85.3,88.1,87.1,85.8,88.9,88.7,85.1,93.9,80.8,89.2,86.6,85.8,86.6,91.1,88.6,89.5,82.9,88.8,86.8,90.6,86.6,87.9,93.3,87.5,86.7,86.3,89.3,84.9,87.1,86.4,91.2,90.7,87.7,87.7,90.2,89.4,87.7,89.1,90.0,84.3,88.5,83.8,88.1,90.3,92.2,88.0,90.5,87.5,85.8,88.4,87.8,88.3,91.7,90.7,87.8,85.0,87.3,84.0,86.4,88.4,87.0,86.2,81.7,87.9,88.1,90.5,88.6,92.2,84.9,90.0,88.0,87.2,87.5,84.2,93.7]},"understaffed":{"labels":[50,100,150,200,250,300,350,400,450,500,550,600,650,700,750,800,850,900,950,1000,1050,1100,1150,1200,1250,1300,1350,1400,1450,1500,1550,1600,1650,1700,1750,1800,1850,1900,1950,2000,2050,2100,2150,2200,2250,2300,2350,2400,2450,2500,2550,2600,2650,2700,2750,2800,2850,2900,2950,3000,3050,3100,3150,3200,3250,3300,3350,3400,3450,3500,3550,3600,3650,3700,3750,3800,3850,3900,3950,4000,4050,4100,4150,4200,4250,4300,4350,4400,4450,4500,4550,4600,4650,4700,4750,4800,4850,4900,4950,5000,5050,5100,5150,5200,5250,5300,5350,5400,5450,5500,5550,5600,5650,5700,5750,5800,5850,5900,5950,6000,6050,6100,6150,6200,6250,6300,6350,6400,6450,6500,6550,6600,6650,6700],"avgDelivery":[47.6,49.3,48.0,49.0,47.2,50.0,49.9,52.4,50.3,49.4,49.7,51.0,50.4,50.8,50.0,49.9,53.4,48.1,48.0,51.9,47.7,48.5,49.1,49.1,48.5,49.5,51.1,53.6,49.6,52.3,49.7,47.9,50.4,49.7,50.0,50.0,48.0,54.5,49.4,52.2,49.5,48.3,50.6,49.7,49.8,50.4,47.5,49.3,47.7,53.9,49.3,51.1,46.9,47.9,50.6,46.6,47.3,50.7,49.6,49.6,48.8,48.4,51.8,51.2,49.8,50.5,51.3,53.3,48.0,52.3,54.4,47.0,47.8,50.1,48.5,50.6,46.5,50.1,51.5,50.9,50.2,49.2,53.2,48.9,49.4,48.1,49.2,47.2,50.8,50.1,53.2,52.8,51.6,48.2,50.9,48.3,52.3,48.9,49.2,49.5,53.8,47.1,49.9,51.7,49.4,50.5,49.4,50.2,48.7,48.0,50.3,51.4,51.3,52.9,52.9,48.9,50.9,49.1,48.1,50.0,50.7,51.6,49.1,48.3,50.4,50.6,49.3,49.2,50.8,47.8,50.6,50.5,51.4,47.0,50.5],"deliveredPct":[83.1,81.9,83.2,83.5,82.8,82.2,83.1,82.2,82.5,82.8,82.5,82.3,82.3,82.4,82.1,82.4,82.2,82.2,83.0,82.5,83.4,83.7,82.2,82.3,82.5,83.2,82.3,81.8,82.3,82.4,82.5,82.4,83.1,83.0,82.6,83.0,82.7,81.3,82.9,83.2,82.9,82.6,82.8,82.7,83.0,82.2,82.9,83.2,83.2,82.0,82.5,82.2,83.3,82.6,82.2,83.2,83.2,83.3,83.3,82.8,83.3,83.2,83.0,82.1,82.5,83.2,82.1,83.3,82.8,81.8,82.4,83.1,82.5,82.1,83.6,82.0,82.5,82.8,82.0,82.4,82.2,82.8,81.8,82.0,82.8,82.9,81.8,83.1,81.5,82.5,82.1,81.7,82.7,83.0,82.4,82.9,81.5,83.0,82.5,82.7,81.4,82.4,82.5,81.8,82.4,82.5,83.0,82.6,82.4,83.3,83.0,81.9,83.2,82.0,82.1,82.8,82.8,83.6,82.8,82.3,81.8,82.9,83.4,82.9,82.4,82.3,83.2,83.2,83.4,83.1,82.6,82.4,83.0,83.5,83.8],"slaBreachPct":[2.1,2.1,2.1,2.1,2.0,2.0,1.7,2.1,2.0,1.9,1.9,2.0,2.4,2.3,2.2,2.0,2.4,2.1,1.9,2.2,1.9,1.8,2.1,1.9,2.1,2.2,2.3,2.5,2.0,2.3,1.8,1.8,2.2,2.0,2.1,1.9,2.0,2.7,2.0,2.3,2.1,1.9,2.5,2.2,2.2,2.1,2.0,2.0,2.0,2.5,1.7,2.2,2.0,1.9,2.2,1.7,2.1,2.1,2.0,2.0,1.9,2.0,2.1,2.4,2.2,2.2,2.2,2.1,2.1,2.5,2.1,1.7,1.9,2.0,1.8,2.0,1.9,2.1,2.3,1.9,2.3,2.3,2.4,2.5,2.5,2.0,2.1,2.0,2.1,1.9,2.3,2.5,2.3,1.8,2.4,2.0,2.3,2.2,2.0,2.3,2.4,1.9,2.2,2.2,2.1,2.2,2.4,2.1,2.2,1.7,2.2,1.9,2.4,2.8,2.1,2.0,2.4,2.0,2.0,2.0,2.4,2.4,2.1,2.0,2.2,1.9,1.9,1.9,2.1,2.0,1.9,1.8,2.1,1.8,2.3],"courierUtil":[46.5,48.5,47.1,47.3,47.4,48.0,46.8,50.4,49.2,49.0,48.9,48.1,49.3,48.3,49.7,48.2,49.7,48.4,46.6,48.8,47.9,46.4,48.0,48.2,49.0,48.1,48.5,50.0,47.2,49.7,46.4,48.4,47.7,48.1,48.5,48.8,48.8,52.5,48.9,49.3,47.9,48.5,47.3,48.8,48.0,48.6,46.9,46.9,47.2,50.0,47.8,48.5,47.8,46.9,48.8,45.4,47.7,48.2,48.4,48.3,47.1,48.1,49.5,49.1,48.7,49.0,48.7,49.8,46.1,49.4,48.9,46.8,47.2,48.8,47.0,49.2,46.5,47.8,48.6,48.9,48.2,47.9,50.9,48.0,48.8,46.7,48.3,48.2,48.6,48.3,51.7,50.1,48.7,49.2,49.5,47.1,49.5,48.7,48.7,46.4,49.4,46.0,47.6,49.4,47.9,49.1,48.1,49.3,48.3,47.1,47.9,47.7,49.2,50.6,49.2,47.9,49.2,46.3,47.6,48.0,49.7,49.7,46.4,47.9,47.6,49.5,48.3,48.3,48.7,47.9,48.5,47.5,49.5,45.2,49.2]}};
+const HIST_DATA = {"default":{"deliveredPct":{"bins":[24.1,26.4,28.7,31.1,33.4,35.7,38.1,40.4,42.8,45.1,47.4,49.8,52.1,54.4,56.8,59.1,61.4,63.8,66.1,68.5,70.8,73.1,75.5,77.8,80.1,82.5,84.8,87.2,89.5,91.8],"counts":[5,5,20,26,32,41,61,81,102,147,136,170,188,213,256,276,293,319,380,388,446,526,548,617,497,452,286,141,44,12]},"avgDelivery":{"bins":[35.0,42.0,49.1,56.2,63.2,70.3,77.4,84.4,91.5,98.5,105.6,112.7,119.7,126.8,133.9,140.9,148.0,155.1,162.1,169.2,176.3,183.3,190.4,197.5,204.5,211.6,218.7,225.7,232.8,239.9],"counts":[35,143,252,351,397,506,488,456,414,387,375,335,368,324,303,304,262,238,179,184,121,103,59,47,33,20,10,11,1,2]},"courierUtil":{"bins":[36.2,39.9,43.7,47.4,51.1,54.8,58.6,62.3,66.0,69.7,73.5,77.2,80.9,84.6,88.4,92.1,95.8,99.5,103.3,107.0,110.7,114.4,118.2,121.9,125.6,129.3,133.1,136.8,140.5,144.2],"counts":[2,12,18,42,91,160,282,357,460,587,622,575,657,575,519,461,354,302,192,148,109,68,43,29,20,12,5,2,2,2]},"slaBreachPct":{"bins":[0.5,1.4,2.3,3.2,4.1,5.0,5.9,6.8,7.7,8.6,9.5,10.5,11.4,12.3,13.2,14.1,15.0,15.9,16.8,17.7,18.6,19.5,20.5,21.4,22.3,23.2,24.1,25.0,25.9,26.8],"counts":[263,341,560,623,626,545,475,411,365,318,294,311,230,217,202,178,175,120,132,98,68,56,33,31,13,9,5,2,4,3]}},"peak":{"deliveredPct":{"bins":[76.7,77.1,77.6,78.1,78.5,79.0,79.5,79.9,80.4,80.9,81.3,81.8,82.3,82.8,83.2,83.7,84.2,84.6,85.1,85.6,86.0,86.5,87.0,87.4,87.9,88.4,88.8,89.3,89.8,90.2],"counts":[1,2,0,5,2,8,23,39,36,56,91,122,133,185,225,235,233,246,262,209,172,109,70,83,42,28,16,2,2,4]},"avgDelivery":{"bins":[34.5,35.2,36.0,36.7,37.5,38.2,39.0,39.8,40.5,41.3,42.0,42.8,43.5,44.3,45.0,45.8,46.6,47.3,48.1,48.8,49.6,50.3,51.1,51.8,52.6,53.3,54.1,54.9,55.6,56.4],"counts":[3,12,23,40,65,106,155,204,244,255,272,268,224,203,150,118,84,65,42,40,21,14,12,3,8,3,3,1,0,3]},"courierUtil":{"bins":[26.7,27.7,28.7,29.7,30.7,31.7,32.7,33.7,34.7,35.7,36.7,37.7,38.7,39.7,40.7,41.7,42.7,43.7,44.7,45.7,46.7,47.7,48.7,49.7,50.7,51.7,52.7,53.7,54.7,55.7],"counts":[5,10,12,17,34,53,76,108,140,195,200,238,244,259,227,178,167,140,109,77,52,38,28,16,7,3,5,1,0,2]},"slaBreachPct":{"bins":[0.1,0.2,0.3,0.5,0.6,0.8,0.9,1.0,1.2,1.3,1.5,1.6,1.7,1.9,2.0,2.2,2.3,2.4,2.6,2.7,2.9,3.0,3.1,3.3,3.4,3.6,3.7,3.8,4.0,4.1],"counts":[9,44,10,100,36,203,69,282,131,302,172,271,175,189,152,117,84,80,78,36,29,23,21,11,6,4,1,1,4,1]}},"chaos":{"deliveredPct":{"bins":[21.6,24.0,26.4,28.7,31.1,33.5,35.9,38.2,40.6,43.0,45.3,47.7,50.1,52.4,54.8,57.2,59.6,61.9,64.3,66.7,69.0,71.4,73.8,76.1,78.5,80.9,83.3,85.6,88.0,90.4],"counts":[4,8,22,28,46,87,105,128,178,167,220,214,253,264,285,294,339,356,358,433,416,422,428,469,420,311,260,124,53,16]},"avgDelivery":{"bins":[37.1,44.4,51.8,59.2,66.6,73.9,81.3,88.7,96.1,103.5,110.8,118.2,125.6,133.0,140.3,147.7,155.1,162.5,169.8,177.2,184.6,192.0,199.3,206.7,214.1,221.5,228.8,236.2,243.6,251.0],"counts":[17,79,144,225,326,402,396,396,404,376,420,393,426,424,412,411,339,303,241,179,136,88,66,41,31,18,7,6,0,2]},"courierUtil":{"bins":[36.6,40.6,44.5,48.5,52.5,56.4,60.4,64.3,68.3,72.2,76.2,80.1,84.1,88.1,92.0,96.0,99.9,103.9,107.8,111.8,115.8,119.7,123.7,127.6,131.6,135.5,139.5,143.4,147.4,151.4],"counts":[1,4,8,26,48,102,170,277,363,500,530,615,637,600,526,538,431,339,288,224,181,112,67,53,28,19,11,5,3,2]},"slaBreachPct":{"bins":[0.5,1.4,2.4,3.3,4.3,5.2,6.2,7.1,8.1,9.0,10.0,10.9,11.9,12.8,13.8,14.7,15.7,16.6,17.6,18.5,19.5,20.4,21.4,22.3,23.3,24.2,25.2,26.1,27.1,28.0],"counts":[136,185,424,509,484,473,437,421,425,391,334,305,308,310,249,259,271,215,162,136,105,64,41,29,9,16,4,3,1,2]}},"understaffed":{"deliveredPct":{"bins":[59.6,60.7,61.9,63.1,64.3,65.4,66.6,67.8,69.0,70.1,71.3,72.5,73.6,74.8,76.0,77.2,78.3,79.5,80.7,81.9,83.0,84.2,85.4,86.5,87.7,88.9,90.1,91.2,92.4,93.6],"counts":[2,2,5,1,4,3,9,5,10,25,29,40,95,114,183,241,356,426,605,771,825,850,783,549,380,220,111,44,15,5]},"avgDelivery":{"bins":[30.9,36.1,41.2,46.4,51.5,56.7,61.8,67.0,72.1,77.2,82.4,87.5,92.7,97.8,103.0,108.1,113.3,118.4,123.5,128.7,133.8,139.0,144.1,149.3,154.4,159.6,164.7,169.8,175.0,180.1],"counts":[76,793,1588,1416,1007,652,439,259,169,97,71,41,30,23,18,5,7,4,4,2,4,2,0,0,0,0,0,0,0,1]},"courierUtil":{"bins":[22.5,24.5,26.5,28.5,30.5,32.5,34.5,36.5,38.5,40.6,42.6,44.6,46.6,48.6,50.6,52.6,54.6,56.6,58.6,60.7,62.7,64.7,66.7,68.7,70.7,72.7,74.7,76.7,78.7,80.8],"counts":[2,9,12,33,51,115,161,270,368,451,541,637,612,653,547,490,446,376,276,191,161,112,68,49,34,23,11,7,1,1]},"slaBreachPct":{"bins":[0.2,0.7,1.1,1.6,2.0,2.5,2.9,3.4,3.8,4.3,4.7,5.2,5.6,6.1,6.5,7.0,7.4,7.9,8.3,8.8,9.2,9.7,10.1,10.6,11.0,11.5,11.9,12.4,12.8,13.3],"counts":[508,1140,645,829,974,676,521,439,298,234,148,96,62,41,24,19,16,11,10,7,4,0,0,2,1,1,1,0,0,1]}}};
+const STATS = {"default":{"n":6708,"deliveredPct":{"mean":67.98,"std":12.98,"var":168.56,"ci95":0.311,"low3":29.0,"high3":106.9,"min":22.9,"max":93.0},"avgDelivery":{"mean":106.02,"std":39.73,"var":1578.44,"ci95":0.951,"low3":-13.2,"high3":225.2,"min":31.4,"max":243.4},"courierUtil":{"mean":80.59,"std":15.53,"var":241.22,"ci95":0.372,"low3":34.0,"high3":127.2,"min":34.3,"max":146.1},"slaBreachPct":{"mean":7.42,"std":5.02,"var":25.21,"ci95":0.12,"low3":-7.6,"high3":22.5,"min":0,"max":27.3},"assemblyUtil":{"mean":14.24,"std":1.28,"var":1.63,"ci95":0.031,"low3":10.4,"high3":18.1,"min":10.1,"max":19.9},"orders":{"mean":149.08,"std":12.99,"var":168.84,"ci95":0.311,"low3":110.1,"high3":188.1,"min":103,"max":203}},"peak":{"n":2641,"deliveredPct":{"mean":84.17,"std":1.98,"var":3.92,"ci95":0.076,"low3":78.2,"high3":90.1,"min":76.4,"max":90.5},"avgDelivery":{"mean":42.45,"std":3.12,"var":9.76,"ci95":0.119,"low3":33.1,"high3":51.8,"min":34.1,"max":56.7},"courierUtil":{"mean":39.19,"std":4.35,"var":18.89,"ci95":0.166,"low3":26.2,"high3":52.2,"min":26.2,"max":56.2},"slaBreachPct":{"mean":1.54,"std":0.65,"var":0.42,"ci95":0.025,"low3":-0.4,"high3":3.5,"min":0,"max":4.2},"assemblyUtil":{"mean":36.16,"std":1.95,"var":3.79,"ci95":0.074,"low3":30.3,"high3":42.0,"min":29.0,"max":43.6},"orders":{"mean":378.75,"std":19.68,"var":387.42,"ci95":0.751,"low3":319.7,"high3":437.8,"min":309,"max":453}},"chaos":{"n":6708,"deliveredPct":{"mean":63.34,"std":14.1,"var":198.93,"ci95":0.338,"low3":21.0,"high3":105.7,"min":20.5,"max":91.5},"avgDelivery":{"mean":118.51,"std":39.16,"var":1533.24,"ci95":0.937,"low3":1.0,"high3":236.0,"min":33.4,"max":254.7},"courierUtil":{"mean":87.72,"std":16.84,"var":283.69,"ci95":0.403,"low3":37.2,"high3":138.2,"min":34.7,"max":153.3},"slaBreachPct":{"mean":9.04,"std":5.31,"var":28.19,"ci95":0.127,"low3":-6.9,"high3":25.0,"min":0,"max":28.5},"assemblyUtil":{"mean":14.24,"std":1.28,"var":1.64,"ci95":0.031,"low3":10.4,"high3":18.1,"min":9.8,"max":19.6},"orders":{"mean":149.08,"std":12.99,"var":168.84,"ci95":0.311,"low3":110.1,"high3":188.1,"min":103,"max":203}},"understaffed":{"n":6708,"deliveredPct":{"mean":82.63,"std":4.1,"var":16.79,"ci95":0.098,"low3":70.3,"high3":94.9,"min":59.0,"max":94.2},"avgDelivery":{"mean":49.92,"std":12.67,"var":160.65,"ci95":0.303,"low3":11.9,"high3":87.9,"min":28.4,"max":182.7},"courierUtil":{"mean":48.31,"std":8.58,"var":73.65,"ci95":0.205,"low3":22.6,"high3":74.1,"min":21.5,"max":81.8},"slaBreachPct":{"mean":2.11,"std":1.49,"var":2.22,"ci95":0.036,"low3":-2.4,"high3":6.6,"min":0,"max":13.5},"assemblyUtil":{"mean":14.23,"std":1.28,"var":1.63,"ci95":0.031,"low3":10.4,"high3":18.1,"min":10.1,"max":19.1},"orders":{"mean":149.08,"std":12.99,"var":168.84,"ci95":0.311,"low3":110.1,"high3":188.1,"min":103,"max":203}}};
 
-const COLORS = {
-  default: {bg:'rgba(91,138,247,0.15)', border:'#5b8af7'},
-  peak:    {bg:'rgba(251,191,36,0.15)', border:'#fbbf24'},
-  chaos:   {bg:'rgba(248,113,113,0.15)',border:'#f87171'},
-  understaffed: {bg:'rgba(192,132,252,0.15)',border:'#c084fc'}
+const C = {
+  default: {bg:'rgba(91,138,247,0.5)', border:'#5b8af7', line:'rgba(91,138,247,0.15)'},
+  peak:    {bg:'rgba(251,191,36,0.5)', border:'#fbbf24', line:'rgba(251,191,36,0.15)'},
+  chaos:   {bg:'rgba(248,113,113,0.5)',border:'#f87171', line:'rgba(248,113,113,0.15)'},
+  understaffed: {bg:'rgba(192,132,252,0.5)',border:'#c084fc',line:'rgba(192,132,252,0.15)'}
 };
-const SCENARIOS = ['default','peak','chaos','understaffed'];
-const LABELS_RU = {default:'Default (5к)',peak:'Peak (25к)',chaos:'Chaos (5к)',understaffed:'Understaffed (8к)'};
+const SC = ['default','peak','chaos','understaffed'];
+const LBL = {default:'Default (5к)',peak:'Peak (25к)',chaos:'Chaos (5к)',understaffed:'Understaffed (8к)'};
 
 Chart.defaults.color = '#7a8099';
 Chart.defaults.borderColor = '#2e3450';
-Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+Chart.defaults.font.family = "'Segoe UI',system-ui,sans-serif";
 
-function makeChart(canvasId, metric, yLabel) {
-  const datasets = SCENARIOS.map(sc => ({
-    label: LABELS_RU[sc],
-    data: DAILY_DATA[sc][metric],
-    borderColor: COLORS[sc].border,
-    backgroundColor: COLORS[sc].bg,
-    borderWidth: 1.5,
-    pointRadius: 0,
-    tension: 0.3,
-    fill: false
-  }));
-  // Use longest label set for x-axis
-  const maxLabels = SCENARIOS.reduce((best,sc) =>
+// --- Histogram for one scenario ---
+function makeHist(canvasId, scenario, metric, xLabel) {
+  const h = HIST_DATA[scenario][metric];
+  new Chart(document.getElementById(canvasId), {
+    type: 'bar',
+    data: {
+      labels: h.bins,
+      datasets: [{
+        data: h.counts,
+        backgroundColor: C[scenario].bg,
+        borderColor: C[scenario].border,
+        borderWidth: 1,
+        borderRadius: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { title: { display: true, text: xLabel, color: '#7a8099' },
+             ticks: { maxTicksLimit: 10, font: { size: 10 } } },
+        y: { title: { display: true, text: 'Дней', color: '#7a8099' } }
+      }
+    }
+  });
+}
+
+// --- Overlay histograms for all scenarios ---
+function makeHistOverlay(canvasId, metric, xLabel) {
+  const datasets = SC.map(sc => {
+    const h = HIST_DATA[sc][metric];
+    return {
+      label: LBL[sc],
+      data: h.bins.map((b, i) => ({ x: b, y: h.counts[i] })),
+      backgroundColor: C[sc].bg,
+      borderColor: C[sc].border,
+      borderWidth: 1,
+      borderRadius: 2,
+      barPercentage: 1.0,
+      categoryPercentage: 0.8
+    };
+  });
+  new Chart(document.getElementById(canvasId), {
+    type: 'bar',
+    data: { datasets },
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { boxWidth: 12, padding: 10 } } },
+      scales: {
+        x: { type: 'linear', title: { display: true, text: xLabel, color: '#7a8099' },
+             ticks: { maxTicksLimit: 10 } },
+        y: { title: { display: true, text: 'Дней', color: '#7a8099' } }
+      }
+    }
+  });
+}
+
+// --- Time series ---
+function makeTS(canvasId, metric, yLabel) {
+  const maxLabels = SC.reduce((best, sc) =>
     DAILY_DATA[sc].labels.length > best.length ? DAILY_DATA[sc].labels : best, []);
-
+  const datasets = SC.map(sc => ({
+    label: LBL[sc],
+    data: DAILY_DATA[sc][metric],
+    borderColor: C[sc].border,
+    backgroundColor: C[sc].line,
+    borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false
+  }));
   new Chart(document.getElementById(canvasId), {
     type: 'line',
     data: { labels: maxLabels, datasets },
@@ -494,11 +506,17 @@ function makeChart(canvasId, metric, yLabel) {
   });
 }
 
-makeChart('chartDelivery', 'avgDelivery', 'Время доставки, мин');
-makeChart('chartDelivered', 'deliveredPct', 'Доставлено, %');
-makeChart('chartSLA', 'slaBreachPct', 'SLA breach, %');
-makeChart('chartCourier', 'courierUtil', 'Загрузка курьеров, %');
+// Render all charts
+makeHist('histDelivDefault', 'default', 'deliveredPct', 'Delivered %');
+makeHist('histCourDefault', 'default', 'courierUtil', 'Courier util %');
+makeHist('histDelivTimeDefault', 'default', 'avgDelivery', 'Avg delivery, мин');
+makeHist('histSLADefault', 'default', 'slaBreachPct', 'SLA breach %');
+makeHistOverlay('histDelivAll', 'deliveredPct', 'Delivered %');
+makeHistOverlay('histCourAll', 'courierUtil', 'Courier util %');
+makeTS('tsDelivery', 'avgDelivery', 'Время доставки, мин');
+makeTS('tsDelivered', 'deliveredPct', 'Доставлено, %');
+makeTS('tsSLA', 'slaBreachPct', 'SLA breach, %');
+makeTS('tsCourier', 'courierUtil', 'Загрузка курьеров, %');
 </script>
-
 </body>
 </html>

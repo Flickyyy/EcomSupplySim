@@ -178,14 +178,21 @@ func printDailyVariation(e *sim.Engine) {
 		{"Assembly util %", asmUtil},
 	}
 
-	thin := strings.Repeat("-", 62)
+	thin := strings.Repeat("-", 86)
 	fmt.Println(thin)
-	fmt.Printf("       ВАРИАЦИЯ ПО ДНЯМ (N=%d независимых повторов)\n", n)
+	fmt.Printf("            ВАРИАЦИЯ ПО ДНЯМ (N=%d независимых повторов)\n", n)
 	fmt.Println(thin)
-	fmt.Printf("  %-20s %8s %8s %8s %8s\n", "Метрика", "Mean", "Std", "Min", "Max")
+	fmt.Printf("  %-20s %7s %7s %7s %10s %10s %10s\n",
+		"Метрика", "Mean", "Std", "Var", "3σ low", "3σ high", "95% CI ±")
 	for _, r := range rows {
-		mean, std, mn, mx := seriesStats(r.vals)
-		fmt.Printf("  %-20s %8.1f %8.2f %8.1f %8.1f\n", r.name, mean, std, mn, mx)
+		mean, std, _, _ := seriesStats(r.vals)
+		variance := std * std
+		low3 := mean - 3*std
+		high3 := mean + 3*std
+		se := std / math.Sqrt(float64(n))
+		ci95 := 1.96 * se
+		fmt.Printf("  %-20s %7.1f %7.2f %7.2f %10.1f %10.1f %10.3f\n",
+			r.name, mean, std, variance, low3, high3, ci95)
 	}
 }
 
