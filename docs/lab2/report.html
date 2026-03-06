@@ -48,6 +48,7 @@
   th { background: var(--surface2); color: var(--text-muted); font-size: .75rem;
     text-transform: uppercase; letter-spacing: .07em; padding: 10px 14px;
     border-bottom: 1px solid var(--border); text-align: left; }
+  #s4 th { text-transform: none; }
   td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
   tr:last-child td { border-bottom: none; }
   tr:hover td { background: var(--surface2); }
@@ -281,37 +282,32 @@
   <h3 id="s4-hist">4.2 Гистограммы распределений посуточных метрик</h3>
   <p>Гистограммы показывают эмпирическое распределение посуточных значений. По ЦПТ, суммарные метрики дня (среднее ~150 заказов) должны стремиться к нормальному распределению.</p>
 
+  <h4 class="sub">Default (5 курьеров)</h4>
   <div class="chart-grid">
-    <div class="chart-wrap">
-      <h4 class="sub" style="margin:0 0 12px">Распределение: Delivered % (Default)</h4>
-      <canvas id="histDelivDefault"></canvas>
-    </div>
-    <div class="chart-wrap">
-      <h4 class="sub" style="margin:0 0 12px">Распределение: Courier util % (Default)</h4>
-      <canvas id="histCourDefault"></canvas>
-    </div>
+    <div class="chart-wrap"><canvas id="histDelivDefault"></canvas></div>
+    <div class="chart-wrap"><canvas id="histCourDefault"></canvas></div>
+  </div>
+  <div class="chart-grid">
+    <div class="chart-wrap"><canvas id="histDelivTimeDefault"></canvas></div>
+    <div class="chart-wrap"><canvas id="histSLADefault"></canvas></div>
   </div>
 
+  <h4 class="sub">Peak (25 курьеров)</h4>
   <div class="chart-grid">
-    <div class="chart-wrap">
-      <h4 class="sub" style="margin:0 0 12px">Распределение: Avg delivery мин (Default)</h4>
-      <canvas id="histDelivTimeDefault"></canvas>
-    </div>
-    <div class="chart-wrap">
-      <h4 class="sub" style="margin:0 0 12px">Распределение: SLA breach % (Default)</h4>
-      <canvas id="histSLADefault"></canvas>
-    </div>
+    <div class="chart-wrap"><canvas id="histDelivPeak"></canvas></div>
+    <div class="chart-wrap"><canvas id="histCourPeak"></canvas></div>
   </div>
 
+  <h4 class="sub">Chaos (поломки&times;5)</h4>
   <div class="chart-grid">
-    <div class="chart-wrap">
-      <h4 class="sub" style="margin:0 0 12px">Delivered % — сравнение сценариев</h4>
-      <canvas id="histDelivAll"></canvas>
-    </div>
-    <div class="chart-wrap">
-      <h4 class="sub" style="margin:0 0 12px">Courier util % — сравнение сценариев</h4>
-      <canvas id="histCourAll"></canvas>
-    </div>
+    <div class="chart-wrap"><canvas id="histDelivChaos"></canvas></div>
+    <div class="chart-wrap"><canvas id="histCourChaos"></canvas></div>
+  </div>
+
+  <h4 class="sub">Understaffed (8 курьеров)</h4>
+  <div class="chart-grid">
+    <div class="chart-wrap"><canvas id="histDelivUnder"></canvas></div>
+    <div class="chart-wrap"><canvas id="histCourUnder"></canvas></div>
   </div>
 
   <!-- ══════════ TIME SERIES ══════════ -->
@@ -449,35 +445,6 @@ function makeHist(canvasId, scenario, metric, xLabel) {
   });
 }
 
-// --- Overlay histograms for all scenarios ---
-function makeHistOverlay(canvasId, metric, xLabel) {
-  const datasets = SC.map(sc => {
-    const h = HIST_DATA[sc][metric];
-    return {
-      label: LBL[sc],
-      data: h.bins.map((b, i) => ({ x: b, y: h.counts[i] })),
-      backgroundColor: C[sc].bg,
-      borderColor: C[sc].border,
-      borderWidth: 1,
-      borderRadius: 2,
-      barPercentage: 1.0,
-      categoryPercentage: 0.8
-    };
-  });
-  new Chart(document.getElementById(canvasId), {
-    type: 'bar',
-    data: { datasets },
-    options: {
-      responsive: true,
-      plugins: { legend: { labels: { boxWidth: 12, padding: 10 } } },
-      scales: {
-        x: { type: 'linear', title: { display: true, text: xLabel, color: '#7a8099' },
-             ticks: { maxTicksLimit: 10 } },
-        y: { title: { display: true, text: 'Дней', color: '#7a8099' } }
-      }
-    }
-  });
-}
 
 // --- Time series ---
 function makeTS(canvasId, metric, yLabel) {
@@ -511,8 +478,12 @@ makeHist('histDelivDefault', 'default', 'deliveredPct', 'Delivered %');
 makeHist('histCourDefault', 'default', 'courierUtil', 'Courier util %');
 makeHist('histDelivTimeDefault', 'default', 'avgDelivery', 'Avg delivery, мин');
 makeHist('histSLADefault', 'default', 'slaBreachPct', 'SLA breach %');
-makeHistOverlay('histDelivAll', 'deliveredPct', 'Delivered %');
-makeHistOverlay('histCourAll', 'courierUtil', 'Courier util %');
+makeHist('histDelivPeak', 'peak', 'deliveredPct', 'Delivered %');
+makeHist('histCourPeak', 'peak', 'courierUtil', 'Courier util %');
+makeHist('histDelivChaos', 'chaos', 'deliveredPct', 'Delivered %');
+makeHist('histCourChaos', 'chaos', 'courierUtil', 'Courier util %');
+makeHist('histDelivUnder', 'understaffed', 'deliveredPct', 'Delivered %');
+makeHist('histCourUnder', 'understaffed', 'courierUtil', 'Courier util %');
 makeTS('tsDelivery', 'avgDelivery', 'Время доставки, мин');
 makeTS('tsDelivered', 'deliveredPct', 'Доставлено, %');
 makeTS('tsSLA', 'slaBreachPct', 'SLA breach, %');
