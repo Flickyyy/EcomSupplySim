@@ -69,14 +69,14 @@ type Scn struct {
 }
 
 type Output struct {
-	Heat []Pt    `json:"heat"`
-	HR   []int   `json:"hr"`
+	Heat []Pt      `json:"heat"`
+	HR   []int     `json:"hr"`
 	HC   []float64 `json:"hc"`
-	ByC  []Pt    `json:"byC"`
-	ByL  []Pt    `json:"byL"`
-	ByD  []DPt   `json:"byD"`
-	Vf   []VfRow `json:"vf"`
-	Sc   []Scn   `json:"sc"`
+	ByC  []Pt      `json:"byC"`
+	ByL  []Pt      `json:"byL"`
+	ByD  []DPt     `json:"byD"`
+	Vf   []VfRow   `json:"vf"`
+	Sc   []Scn     `json:"sc"`
 }
 
 // ---------- helpers ----------
