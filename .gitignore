@@ -34,3 +34,4 @@ go.work.sum
 # Compiled binary
 /sim
 /sweep
+/opt

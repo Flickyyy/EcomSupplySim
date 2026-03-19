@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ПР №4 — Оптимизация параметров системы — EcomSupplySim</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #21263a; --border: #2e3450;
+    --accent: #5b8af7; --accent2: #7ecaff; --green: #3ecf8e; --red: #f87171;
+    --yellow: #fbbf24; --text: #d4d8f0; --text-muted: #7a8099;
+    --code-bg: #151824; --radius: 10px;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); line-height: 1.7; }
+  .page { max-width: 1120px; margin: 0 auto; padding: 40px 28px 80px; }
+  .header { padding: 44px 0 36px; border-bottom: 1px solid var(--border); margin-bottom: 40px; }
+  .badge-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+  .badge { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+    padding: 4px 10px; border-radius: 20px; background: var(--surface2); border: 1px solid var(--border); color: var(--accent2); }
+  .badge.green { color: var(--green); border-color: #1f5c40; background: #0f2820; }
+  .badge.yellow { color: var(--yellow); border-color: #5c4b1f; background: #281f0f; }
+  .badge.red { color: var(--red); border-color: #5c1f1f; background: #280f0f; }
+  h1 { font-size: 2.2rem; font-weight: 700; line-height: 1.25; color: #eef0ff; }
+  h1 span { color: var(--accent); }
+  .subtitle { margin-top: 10px; color: var(--text-muted); font-size: 1rem; }
+
+  .toc { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px 28px; margin-bottom: 48px; }
+  .toc h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .1em; color: var(--text-muted); margin-bottom: 14px; }
+  .toc ol { padding-left: 20px; }
+  .toc li { margin: 5px 0; }
+  .toc a { color: var(--accent2); text-decoration: none; font-size: .93rem; }
+
+  .section { margin-bottom: 56px; }
+  h2.section-title { font-size: 1.5rem; font-weight: 700; color: #eef0ff; padding-bottom: 10px;
+    border-bottom: 1px solid var(--border); margin-bottom: 24px; display: flex; align-items: center; gap: 12px; }
+  h2.section-title .num { background: var(--accent); color: #fff; font-size: .8rem; font-weight: 700; border-radius: 6px; padding: 2px 8px; }
+  h3 { font-size: 1.1rem; font-weight: 600; color: var(--accent2); margin: 24px 0 12px; }
+  p { margin-bottom: 12px; }
+  ul.bullets { margin: 8px 0 16px 24px; }
+
+  .metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0 24px; }
+  .metric-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; text-align: center; }
+  .metric-value { font-size: 1.4rem; font-weight: 700; color: var(--accent); }
+  .metric-label { font-size: .75rem; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: .05em; }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: .9rem; }
+  th { background: var(--surface2); color: var(--text-muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .07em;
+    padding: 10px 14px; border-bottom: 1px solid var(--border); text-align: left; }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; font-family: 'Cascadia Code','Fira Code',monospace; }
+  tr:hover td { background: var(--surface2); }
+
+  .chart-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 18px; margin: 16px 0 24px; }
+  .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0 24px; }
+  .chart-wrap canvas { max-height: 350px; }
+
+  .callout { border-left: 3px solid var(--accent); background: var(--surface); border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 12px 16px; margin: 16px 0; }
+  .callout.success { border-left-color: var(--green); }
+  .callout.warn { border-left-color: var(--yellow); }
+
+  .pass { color: var(--green); font-weight: 700; }
+  .fail { color: var(--red); font-weight: 700; }
+  code { background: var(--code-bg); color: var(--accent2); padding: 2px 6px; border-radius: 4px; font-size: .85em; }
+
+  .heat-table th, .heat-table td { text-align: center; }
+  .heat-table td { color: #fff; font-weight: 700; }
+
+  .footer { border-top: 1px solid var(--border); padding-top: 24px; margin-top: 60px; display: flex; justify-content: space-between;
+    font-size: .8rem; color: var(--text-muted); flex-wrap: wrap; gap: 8px; }
+
+  @media (max-width: 760px) {
+    .metric-grid, .chart-grid { grid-template-columns: 1fr; }
+    h1 { font-size: 1.6rem; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <div class="badge-row">
+      <span class="badge">Практическая работа №4</span>
+      <span class="badge green">Optimization</span>
+      <span class="badge yellow">Go 1.23</span>
+      <span class="badge red">Grid + Local Search</span>
+    </div>
+    <h1>Оптимизация параметров системы <span>на основе имитационной модели</span></h1>
+    <p class="subtitle">EcomSupplySim · ИТМО · Подготовка к защите с воспроизводимыми экспериментами</p>
+  </div>
+
+  <nav class="toc">
+    <h2>Содержание</h2>
+    <ol>
+      <li><a href="#s1">Описание модели</a></li>
+      <li><a href="#s2">Целевая функция и ограничения</a></li>
+      <li><a href="#s3">План и результаты экспериментов</a></li>
+      <li><a href="#s4">Методы оптимизации и оптимальные параметры</a></li>
+      <li><a href="#s5">Анализ влияния параметров</a></li>
+      <li><a href="#s6">Рекомендации и ожидаемый эффект</a></li>
+    </ol>
+  </nav>
+
+  <section class="section" id="s1">
+    <h2 class="section-title"><span class="num">1</span> Описание модели</h2>
+    <p>Объект моделирования: логистическая система e-commerce доставки с возвратами. Используется модель из ПР1-3: поток заказов, сборка, доставка, возвратная логистика.</p>
+    <h3>Входные параметры оптимизации</h3>
+    <ul class="bullets">
+      <li><code>NCouriers</code> — число курьеров (4..24, шаг 2).</li>
+      <li><code>NStores</code> — число магазинов/складов (3..6).</li>
+      <li><code>SlotsPerStore</code> — число параллельных слотов сборки на магазин (2..5).</li>
+    </ul>
+    <h3>Выходные показатели</h3>
+    <ul class="bullets">
+      <li>Delivered %, SLA breach %, Avg delivery (мин).</li>
+      <li>Загрузка курьеров и сборки.</li>
+      <li>Структура статусов (Cancelled %, Disposed %).</li>
+      <li>Интегральная стоимость по целевой функции.</li>
+    </ul>
+  </section>
+
+  <section class="section" id="s2">
+    <h2 class="section-title"><span class="num">2</span> Целевая функция и ограничения</h2>
+    <div class="callout">
+      <strong>Цель:</strong> минимизировать суммарные дневные затраты
+      <br><code>TotalCost = ResourceCost + SLA penalty + Cancel penalty + Dispose penalty</code>
+    </div>
+    <p><strong>Ресурсная часть:</strong> курьеры + склады + слоты сборки. <strong>Штрафы:</strong> за SLA-нарушения, отмены и утилизацию.</p>
+
+    <h3>Ограничения (feasibility)</h3>
+    <table id="constraintsTable">
+      <thead><tr><th>Ограничение</th><th>Формула</th><th>Значение в optimum</th><th>Порог</th><th>Статус</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section class="section" id="s3">
+    <h2 class="section-title"><span class="num">3</span> План и результаты экспериментов</h2>
+    <p>Эксперименты проведены на трёх режимах спроса (LambdaMult 1.0 / 1.5 / 2.0) с весами 0.5 / 0.3 / 0.2.</p>
+
+    <div class="metric-grid" id="kpis"></div>
+
+    <div class="chart-grid">
+      <div class="chart-wrap"><canvas id="objectiveScatter"></canvas></div>
+      <div class="chart-wrap"><canvas id="byCouriers"></canvas></div>
+    </div>
+
+    <h3>Top-5 конфигураций</h3>
+    <table id="top5Table">
+      <thead><tr><th>#</th><th>Параметры</th><th>Delivered %</th><th>SLA %</th><th>Avg delivery</th><th>Cost</th><th>Objective</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section class="section" id="s4">
+    <h2 class="section-title"><span class="num">4</span> Методы оптимизации и оптимальные параметры</h2>
+    <h3>Использованные методы</h3>
+    <ul class="bullets" id="methodList"></ul>
+
+    <h3>Найденный optimum (лучшее feasible-решение)</h3>
+    <table id="bestTable">
+      <thead><tr><th>Параметры</th><th>Delivered %</th><th>SLA %</th><th>Avg delivery</th><th>Courier util %</th><th>Assembly util %</th><th>Total cost</th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <h3>Локальный поиск (траектория)</h3>
+    <div class="chart-wrap"><canvas id="localTrace"></canvas></div>
+
+    <h3>Тепловая карта objective по NCouriers × NStores (минимум по Slots)</h3>
+    <div id="heatWrap"></div>
+  </section>
+
+  <section class="section" id="s5">
+    <h2 class="section-title"><span class="num">5</span> Анализ влияния параметров</h2>
+    <p>Оценка влияния выполнена по корреляции параметра с целевой функцией по всей сетке экспериментов.</p>
+    <div class="chart-wrap"><canvas id="influenceChart"></canvas></div>
+    <div id="influenceText" class="callout warn"></div>
+  </section>
+
+  <section class="section" id="s6">
+    <h2 class="section-title"><span class="num">6</span> Рекомендации и ожидаемый эффект</h2>
+    <div id="conclusion"></div>
+  </section>
+
+  <div class="footer">
+    <span>EcomSupplySim · ИТМО · ПР4</span>
+    <span>Источник данных: docs/lab4/data.json</span>
+  </div>
+</div>
+
+<script>
+let D;
+fetch('data.json').then(r=>r.json()).then(d=>{ D=d; render(); });
+
+function render(){
+  fillMethods();
+  fillConstraints();
+  fillKPI();
+  fillTop5();
+  fillBest();
+  makeObjectiveScatter();
+  makeByCouriers();
+  makeLocalTrace();
+  makeHeat();
+  makeInfluence();
+  fillConclusion();
+}
+
+function fillMethods(){
+  const ul = document.getElementById('methodList');
+  D.method.forEach(m=>{
+    const li=document.createElement('li');
+    li.textContent=m;
+    ul.appendChild(li);
+  });
+}
+
+function fillConstraints(){
+  const tb=document.querySelector('#constraintsTable tbody');
+  D.summary.constraintsOnBest.forEach(c=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${c.name}</td><td><code>${c.expr}</code></td><td class="num">${c.value.toFixed(2)}</td><td class="num">${c.limit.toFixed(2)}</td><td class="${c.pass?'pass':'fail'}">${c.pass?'PASS':'FAIL'}</td>`;
+    tb.appendChild(tr);
+  });
+}
+
+function fillKPI(){
+  const k=document.getElementById('kpis');
+  const s=D.summary;
+  const cards=[
+    ['Grid points', s.gridPoints],
+    ['Feasible points', s.feasiblePoints],
+    ['Best objective', s.bestFeasible.objective.toFixed(1)],
+    ['Effect vs default', s.estimatedEffectPct.toFixed(2)+'%']
+  ];
+  cards.forEach(([label,val])=>{
+    const d=document.createElement('div');
+    d.className='metric-card';
+    d.innerHTML=`<div class="metric-value">${val}</div><div class="metric-label">${label}</div>`;
+    k.appendChild(d);
+  });
+}
+
+function fillTop5(){
+  const tb=document.querySelector('#top5Table tbody');
+  D.summary.top5.forEach((c,i)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td class="num">${i+1}</td>
+      <td>C=${c.params.nCouriers}, S=${c.params.nStores}, K=${c.params.slotsPerStore}</td>
+      <td class="num">${c.agg.deliveredPct.toFixed(2)}</td>
+      <td class="num">${c.agg.slaBreachPct.toFixed(2)}</td>
+      <td class="num">${c.agg.avgDeliveryMin.toFixed(2)}</td>
+      <td class="num">${c.cost.total.toFixed(1)}</td>
+      <td class="num">${c.objective.toFixed(1)}</td>`;
+    tb.appendChild(tr);
+  });
+}
+
+function fillBest(){
+  const c=D.summary.bestFeasible;
+  const tb=document.querySelector('#bestTable tbody');
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td>C=${c.params.nCouriers}, S=${c.params.nStores}, K=${c.params.slotsPerStore}</td>
+    <td class="num">${c.agg.deliveredPct.toFixed(2)}</td>
+    <td class="num">${c.agg.slaBreachPct.toFixed(2)}</td>
+    <td class="num">${c.agg.avgDeliveryMin.toFixed(2)}</td>
+    <td class="num">${c.agg.courierUtilPct.toFixed(2)}</td>
+    <td class="num">${c.agg.assemblyUtilPct.toFixed(2)}</td>
+    <td class="num">${c.cost.total.toFixed(1)}</td>`;
+  tb.appendChild(tr);
+}
+
+function makeObjectiveScatter(){
+  const feasible = D.grid.filter(x=>x.feasible).map((x,i)=>({x:i,y:x.objective}));
+  const infeasible = D.grid.filter(x=>!x.feasible).map((x,i)=>({x:i,y:x.objective}));
+  new Chart(document.getElementById('objectiveScatter'),{
+    type:'scatter',
+    data:{datasets:[
+      {label:'Feasible',data:feasible,backgroundColor:'rgba(62,207,142,.6)'},
+      {label:'Infeasible',data:infeasible,backgroundColor:'rgba(248,113,113,.5)'}
+    ]},
+    options:{responsive:true,plugins:{title:{display:true,text:'Objective по точкам сетки',color:'#7a8099'}},
+      scales:{x:{title:{display:true,text:'Индекс точки',color:'#7a8099'}},y:{title:{display:true,text:'Objective',color:'#7a8099'}}}}
+  });
+}
+
+function makeByCouriers(){
+  const mp = {};
+  D.grid.forEach(c=>{
+    const k=c.params.nCouriers;
+    if(!(k in mp) || c.objective < mp[k]) mp[k] = c.objective;
+  });
+  const xs=Object.keys(mp).map(Number).sort((a,b)=>a-b);
+  const ys=xs.map(x=>mp[x]);
+  new Chart(document.getElementById('byCouriers'),{
+    type:'line',
+    data:{labels:xs,datasets:[{label:'min objective (по stores/slots)',data:ys,borderColor:'#5b8af7',fill:true,backgroundColor:'rgba(91,138,247,.2)',tension:.25}]},
+    options:{responsive:true,plugins:{title:{display:true,text:'Зависимость objective от числа курьеров',color:'#7a8099'}},
+      scales:{x:{title:{display:true,text:'NCouriers',color:'#7a8099'}},y:{title:{display:true,text:'Objective',color:'#7a8099'}}}}
+  });
+}
+
+function makeLocalTrace(){
+  const t=D.summary.localSearchTrace;
+  new Chart(document.getElementById('localTrace'),{
+    type:'line',
+    data:{labels:t.map(x=>x.step),datasets:[{label:'Objective',data:t.map(x=>x.objective),borderColor:'#fbbf24',tension:.2}]},
+    options:{responsive:true,plugins:{title:{display:true,text:'Траектория hill climbing',color:'#7a8099'}},
+      scales:{x:{title:{display:true,text:'Шаг',color:'#7a8099'}},y:{title:{display:true,text:'Objective',color:'#7a8099'}}}}
+  });
+}
+
+function makeHeat(){
+  const byPair={};
+  D.grid.forEach(c=>{
+    const key=c.params.nCouriers+'_'+c.params.nStores;
+    if(!(key in byPair) || c.objective < byPair[key]) byPair[key]=c.objective;
+  });
+  const cour=[4,6,8,10,12,14,16,18,20,22,24];
+  const stores=[3,4,5,6];
+  const vals=Object.values(byPair);
+  const mn=Math.min(...vals), mx=Math.max(...vals);
+  let html='<table class="heat-table"><thead><tr><th>C\\S</th>';
+  stores.forEach(s=>html+=`<th>${s}</th>`);
+  html+='</tr></thead><tbody>';
+  cour.forEach(c=>{
+    html+=`<tr><th>${c}</th>`;
+    stores.forEach(s=>{
+      const v=byPair[c+'_'+s];
+      const t=(v-mn)/(mx-mn||1);
+      const col=`hsl(${(1-t)*120},70%,38%)`;
+      html+=`<td style="background:${col}">${v.toFixed(0)}</td>`;
+    });
+    html+='</tr>';
+  });
+  html+='</tbody></table>';
+  document.getElementById('heatWrap').innerHTML=html;
+}
+
+function makeInfluence(){
+  const inf=D.summary.paramInfluence;
+  const keys=Object.keys(inf);
+  const vals=keys.map(k=>Math.abs(inf[k]));
+  new Chart(document.getElementById('influenceChart'),{
+    type:'bar',
+    data:{labels:keys,datasets:[{label:'|corr|',data:vals,backgroundColor:['#5b8af7','#7ecaff','#3ecf8e']}]},
+    options:{responsive:true,plugins:{title:{display:true,text:'Влияние параметров на objective (абс. корреляция)',color:'#7a8099'},legend:{display:false}},
+      scales:{y:{beginAtZero:true,max:1}}}
+  });
+
+  const sorted=keys.map(k=>[k,Math.abs(inf[k])]).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('influenceText').innerHTML=
+    `<strong>Наибольшее влияние:</strong> ${sorted[0][0]} (|corr|=${sorted[0][1].toFixed(3)}). `+
+    `Критические ограничения у optimum: `+
+    D.summary.constraintsOnBest.map(c=>`${c.name}=${c.value.toFixed(2)}`).join(', ')+'.';
+}
+
+function fillConclusion(){
+  const b=D.summary.bestFeasible;
+  const d=D.summary.defaultPoint;
+  const el=document.getElementById('conclusion');
+  el.innerHTML=`
+  <div class="callout success">
+    <strong>Рекомендуемая конфигурация:</strong> NCouriers=${b.params.nCouriers}, NStores=${b.params.nStores}, SlotsPerStore=${b.params.slotsPerStore}.
+    <br>Оценочный эффект относительно default: <strong>${D.summary.estimatedEffectPct.toFixed(2)}%</strong> снижения стоимости по целевой функции.
+  </div>
+  <ul class="bullets">
+    <li>Оптимум сохраняет сервисные ограничения: Delivered%=${b.agg.deliveredPct.toFixed(2)}, SLA=${b.agg.slaBreachPct.toFixed(2)}%, Avg delivery=${b.agg.avgDeliveryMin.toFixed(2)} мин.</li>
+    <li>Критические ограничения: бюджет и SLA — именно они отсекли большую часть сетки (feasible ${D.summary.feasiblePoints} из ${D.summary.gridPoints}).</li>
+    <li>Локальный поиск, стартуя из default, улучшает решение с objective ${d.objective.toFixed(1)} до ${D.summary.localSearchBest.objective.toFixed(1)}.</li>
+    <li>Практическая рекомендация: внедрять конфигурацию поэтапно с weekly A/B мониторингом SLA breach и доли отмен.</li>
+  </ul>
+  `;
+}
+</script>
+</body>
+</html>
