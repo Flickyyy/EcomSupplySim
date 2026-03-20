@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ПР №5 — Каскадные процессы в сетях — EcomSupplySim</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0b1020;
+    --surface: #141c33;
+    --surface2: #1b2746;
+    --border: #2a3a65;
+    --accent: #59c3c3;
+    --accent2: #f6bd60;
+    --green: #84dcc6;
+    --red: #f28482;
+    --text: #dbe7ff;
+    --muted: #8ea2c8;
+    --radius: 12px;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: radial-gradient(1100px 600px at 0% 0%, #18284b 0%, var(--bg) 60%); color: var(--text); line-height: 1.65; }
+  .page { max-width: 1160px; margin: 0 auto; padding: 36px 24px 80px; }
+  .header { margin-bottom: 26px; }
+  .badge-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .badge { font-size: 11px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; color: var(--accent); background: var(--surface2); text-transform: uppercase; letter-spacing: .05em; }
+  h1 { font-size: 2rem; line-height: 1.25; margin-bottom: 8px; }
+  h1 span { color: var(--accent2); }
+  .subtitle { color: var(--muted); }
+  .toc, .card, .chart-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+  .toc { padding: 18px 22px; margin-bottom: 24px; }
+  .toc ol { padding-left: 18px; }
+  .toc li { margin: 3px 0; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .section { margin-top: 34px; }
+  .section h2 { font-size: 1.4rem; border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 14px; }
+  .muted { color: var(--muted); }
+  .card { padding: 14px 16px; margin: 12px 0; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .kpi { padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface2); }
+  .kpi .v { font-size: 1.3rem; font-weight: 700; color: var(--accent2); }
+  .kpi .l { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  ul { padding-left: 20px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th, td { border-bottom: 1px solid var(--border); padding: 8px 10px; font-size: .9rem; }
+  th { color: var(--muted); text-transform: uppercase; font-size: .72rem; letter-spacing: .06em; text-align: left; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .chart-wrap { padding: 14px; }
+  .chart-wrap canvas { max-height: 360px; }
+  .formula { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #0d152c; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin: 10px 0; color: #bcd3ff; }
+  .ok { color: var(--green); font-weight: 700; }
+  @media (max-width: 840px) {
+    .grid-4, .grid-2 { grid-template-columns: 1fr; }
+    h1 { font-size: 1.55rem; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <div class="badge-row">
+      <span class="badge">Практическая №5</span>
+      <span class="badge">Сетевое моделирование</span>
+      <span class="badge">SIR</span>
+      <span class="badge">Go + Chart.js</span>
+    </div>
+    <h1>Моделирование <span>каскадных процессов</span> в сетях</h1>
+    <p class="subtitle">Эпидемическое распространение в Erdos-Renyi и Scale-Free сетях с анализом порога, факторов и стратегий.</p>
+  </div>
+
+  <nav class="toc">
+    <ol>
+      <li><a href="#s1">Описание модели</a></li>
+      <li><a href="#s2">Результаты экспериментов</a></li>
+      <li><a href="#s3">Анализ устойчивости и пороги</a></li>
+      <li><a href="#s4">Стратегии и рекомендации</a></li>
+      <li><a href="#s5">Заключение</a></li>
+    </ol>
+  </nav>
+
+  <section class="section" id="s1">
+    <h2>1. Описание модели</h2>
+    <div class="card">
+      <p>Выбран процесс <strong>SIR</strong>: узел сети может быть в состоянии <strong>S</strong> (восприимчив), <strong>I</strong> (заражен), <strong>R</strong> (выздоровел/иммунен).</p>
+      <div class="formula">
+        S->I с вероятностью beta по каждому ребру; I->R с вероятностью gamma на каждом шаге.
+      </div>
+      <p>Типы сетей:</p>
+      <ul>
+        <li>Erdos-Renyi: случайная сеть с параметром плотности связи p.</li>
+        <li>Scale-Free (Barabasi-Albert): сеть с хабами, параметр m (число новых связей при добавлении узла).</li>
+      </ul>
+    </div>
+
+    <div class="grid-4" id="kpiGrid"></div>
+
+    <div class="card">
+      <h3>Параметры процесса</h3>
+      <table id="baseTable">
+        <thead><tr><th>Параметр</th><th>Значение</th><th>Смысл</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>Входные параметры экспериментов</h3>
+      <ul>
+        <li>Плотность связей ER: 0.01, 0.02, 0.03, 0.05, 0.08.</li>
+        <li>Параметр m в scale-free: 1, 2, 3, 4.</li>
+        <li>Вероятность передачи beta: от 0.04 до 0.22.</li>
+        <li>Начальное число зараженных: 1, 3, 5, 10, 20.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section" id="s2">
+    <h2>2. Результаты экспериментов</h2>
+    <p class="muted">Графики динамики S/I/R и зависимости масштаба вспышки от параметров сети и процесса.</p>
+
+    <div class="grid-2">
+      <div class="chart-wrap"><canvas id="dynChart"></canvas></div>
+      <div class="chart-wrap"><canvas id="attackByBeta"></canvas></div>
+    </div>
+    <div class="grid-2">
+      <div class="chart-wrap"><canvas id="attackByDensity"></canvas></div>
+      <div class="chart-wrap"><canvas id="attackByInitial"></canvas></div>
+    </div>
+  </section>
+
+  <section class="section" id="s3">
+    <h2>3. Анализ устойчивости сети и пороговые значения</h2>
+    <div class="card">
+      <p>Порог определен как минимальное значение beta, при котором вероятность крупной вспышки (attack >= 20%) достигает 50%.</p>
+      <table id="thresholdTable">
+        <thead><tr><th>Тип сети</th><th>Оценка beta*</th><th>Интерпретация</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="chart-wrap"><canvas id="thresholdChart"></canvas></div>
+  </section>
+
+  <section class="section" id="s4">
+    <h2>4. Рекомендации и эффективность стратегий</h2>
+    <div class="card">
+      <p>Проверены стратегии сдерживания: без вмешательства, случайная вакцинация 10% узлов, таргетированная вакцинация 10% хабов.</p>
+      <table id="strategyTable">
+        <thead>
+          <tr>
+            <th>Сеть</th><th>Стратегия</th><th>Охват %</th><th>Attack %</th><th>Peak I %</th><th>Снижение Attack vs baseline %</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="chart-wrap"><canvas id="strategyChart"></canvas></div>
+    <div class="card" id="advice"></div>
+  </section>
+
+  <section class="section" id="s5">
+    <h2>5. Заключение</h2>
+    <div class="card" id="conclusion"></div>
+  </section>
+</div>
+
+<script>
+let D;
+fetch('data.json').then(r => r.json()).then(d => { D = d; render(); }).catch(err => {
+  document.body.innerHTML = '<pre style="color:#f28482;padding:20px">Ошибка загрузки data.json: ' + err + '</pre>';
+});
+
+function render() {
+  fillTop();
+  fillBaseTable();
+  fillThresholdTable();
+  fillStrategies();
+  renderDynamics();
+  renderAttackByBeta();
+  renderAttackByDensity();
+  renderAttackByInitial();
+  renderThreshold();
+  renderStrategyChart();
+  fillAdvice();
+  fillConclusion();
+}
+
+function findSweep(net, xName) {
+  return D.sweeps.filter(x => x.networkType === net && x.xName === xName).sort((a,b)=>a.x-b.x);
+}
+
+function fillTop() {
+  const erT = D.summary.thresholdBeta['erdos-renyi'];
+  const sfT = D.summary.thresholdBeta['scale-free'];
+  const cards = [
+    ['Узлов в сети', D.networks[0].n],
+    ['Репликаций на точку', 30],
+    ['Порог beta ER', erT.toFixed(2)],
+    ['Порог beta Scale-Free', sfT.toFixed(2)]
+  ];
+  const root = document.getElementById('kpiGrid');
+  cards.forEach(([l, v]) => {
+    const el = document.createElement('div');
+    el.className = 'kpi';
+    el.innerHTML = `<div class="v">${v}</div><div class="l">${l}</div>`;
+    root.appendChild(el);
+  });
+}
+
+function fillBaseTable() {
+  const p = D.baseParams;
+  const rows = [
+    ['beta', p.beta, 'Вероятность передачи по ребру'],
+    ['gamma', p.gamma, 'Вероятность выздоровления'],
+    ['initialInfect', p.initialInfect, 'Начальное число зараженных'],
+    ['maxSteps', p.maxSteps, 'Ограничение по времени моделирования']
+  ];
+  const tb = document.querySelector('#baseTable tbody');
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${r[0]}</td><td class="num">${r[1]}</td><td>${r[2]}</td>`;
+    tb.appendChild(tr);
+  });
+}
+
+function fillThresholdTable() {
+  const tb = document.querySelector('#thresholdTable tbody');
+  ['erdos-renyi', 'scale-free'].forEach(net => {
+    const b = D.summary.thresholdBeta[net];
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${net}</td><td class="num">${b.toFixed(2)}</td><td>${b <= 0.06 ? 'Низкий порог: каскад запускается легко' : 'Порог выше: сеть устойчивее к запуску каскада'}</td>`;
+    tb.appendChild(tr);
+  });
+}
+
+function fillStrategies() {
+  const tb = document.querySelector('#strategyTable tbody');
+  D.strategies.forEach(s => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${s.networkType}</td><td>${s.strategy}</td><td class="num">${s.coveragePct.toFixed(0)}</td><td class="num">${s.attackRatePct.toFixed(2)}</td><td class="num">${s.peakInfectedPct.toFixed(2)}</td><td class="num">${s.attackReductionPctVsBaseline.toFixed(2)}</td>`;
+    tb.appendChild(tr);
+  });
+}
+
+function renderDynamics() {
+  const a = D.dynamics.find(x => x.name.includes('ER / baseline'));
+  const b = D.dynamics.find(x => x.name.includes('Scale-free / baseline'));
+  new Chart(document.getElementById('dynChart'), {
+    type: 'line',
+    data: {
+      labels: a.series.map(p => p.step),
+      datasets: [
+        { label: 'ER: I(t)', data: a.series.map(p => p.i), borderColor: '#f6bd60', tension: .2 },
+        { label: 'Scale-Free: I(t)', data: b.series.map(p => p.i), borderColor: '#59c3c3', tension: .2 },
+        { label: 'ER: R(t)', data: a.series.map(p => p.r), borderColor: '#84dcc6', borderDash: [5,4], tension: .2 }
+      ]
+    },
+    options: { plugins: { title: { display: true, text: 'Динамика распространения (базовые сценарии)' } }, scales: { y: { title: { display: true, text: '% узлов' } } } }
+  });
+}
+
+function renderAttackByBeta() {
+  const er = findSweep('erdos-renyi', 'beta');
+  const sf = findSweep('scale-free', 'beta');
+  new Chart(document.getElementById('attackByBeta'), {
+    type: 'line',
+    data: {
+      labels: er.map(x => x.x.toFixed(2)),
+      datasets: [
+        { label: 'ER: attack %', data: er.map(x => x.attackRatePct), borderColor: '#f28482', tension: .2 },
+        { label: 'Scale-free: attack %', data: sf.map(x => x.attackRatePct), borderColor: '#59c3c3', tension: .2 }
+      ]
+    },
+    options: { plugins: { title: { display: true, text: 'Влияние beta на масштаб вспышки' } }, scales: { y: { title: { display: true, text: 'Attack rate, %' } } } }
+  });
+}
+
+function renderAttackByDensity() {
+  const er = findSweep('erdos-renyi', 'density');
+  const sf = findSweep('scale-free', 'm');
+  new Chart(document.getElementById('attackByDensity'), {
+    type: 'bar',
+    data: {
+      labels: er.map(x => 'ER p=' + x.x.toFixed(2)).concat(sf.map(x => 'SF m=' + x.x.toFixed(0))),
+      datasets: [{ label: 'Attack %', data: er.map(x => x.attackRatePct).concat(sf.map(x => x.attackRatePct)), backgroundColor: ['#f6bd60','#f6bd60','#f6bd60','#f6bd60','#f6bd60','#59c3c3','#59c3c3','#59c3c3','#59c3c3'] }]
+    },
+    options: { plugins: { title: { display: true, text: 'Влияние структуры сети (плотность/хабы)' }, legend: { display: false } } }
+  });
+}
+
+function renderAttackByInitial() {
+  const er = findSweep('erdos-renyi', 'initialInfect');
+  const sf = findSweep('scale-free', 'initialInfect');
+  new Chart(document.getElementById('attackByInitial'), {
+    type: 'line',
+    data: {
+      labels: er.map(x => x.x.toFixed(0)),
+      datasets: [
+        { label: 'ER: Peak I %', data: er.map(x => x.peakInfectedPct), borderColor: '#f6bd60', tension: .2 },
+        { label: 'Scale-free: Peak I %', data: sf.map(x => x.peakInfectedPct), borderColor: '#84dcc6', tension: .2 }
+      ]
+    },
+    options: { plugins: { title: { display: true, text: 'Влияние начального числа зараженных на пик' } }, scales: { y: { title: { display: true, text: 'Peak I, %' } } } }
+  });
+}
+
+function renderThreshold() {
+  const er = D.threshold.filter(x => x.networkType === 'erdos-renyi').sort((a,b)=>a.beta-b.beta);
+  const sf = D.threshold.filter(x => x.networkType === 'scale-free').sort((a,b)=>a.beta-b.beta);
+  new Chart(document.getElementById('thresholdChart'), {
+    type: 'line',
+    data: {
+      labels: er.map(x => x.beta.toFixed(2)),
+      datasets: [
+        { label: 'ER: вероятность вспышки %', data: er.map(x => x.outbreakProbPct), borderColor: '#f28482', tension: .2 },
+        { label: 'Scale-free: вероятность вспышки %', data: sf.map(x => x.outbreakProbPct), borderColor: '#59c3c3', tension: .2 }
+      ]
+    },
+    options: {
+      plugins: { title: { display: true, text: 'Пороговый анализ (outbreak probability)' } },
+      scales: { y: { min: 0, max: 100, title: { display: true, text: '%' } } }
+    }
+  });
+}
+
+function renderStrategyChart() {
+  const sf = D.strategies.filter(x => x.networkType === 'scale-free');
+  new Chart(document.getElementById('strategyChart'), {
+    type: 'bar',
+    data: {
+      labels: sf.map(x => x.strategy),
+      datasets: [
+        { label: 'Attack %', data: sf.map(x => x.attackRatePct), backgroundColor: '#59c3c3' },
+        { label: 'Peak I %', data: sf.map(x => x.peakInfectedPct), backgroundColor: '#f6bd60' }
+      ]
+    },
+    options: { plugins: { title: { display: true, text: 'Эффективность стратегий в scale-free сети' } } }
+  });
+}
+
+function fillAdvice() {
+  const box = document.getElementById('advice');
+  const cont = D.summary.containmentStrategies.map(x => `<li>${x}</li>`).join('');
+  const acc = D.summary.informationSpreadStrategies.map(x => `<li>${x}</li>`).join('');
+  box.innerHTML = `
+    <h3>Рекомендации по сдерживанию эпидемии</h3>
+    <ul>${cont}</ul>
+    <h3 style="margin-top:10px">Рекомендации для ускорения распространения информации</h3>
+    <ul>${acc}</ul>
+  `;
+}
+
+function fillConclusion() {
+  const erTarget = D.strategies.find(x => x.networkType === 'erdos-renyi' && x.strategy === 'targeted');
+  const sfTarget = D.strategies.find(x => x.networkType === 'scale-free' && x.strategy === 'targeted');
+  document.getElementById('conclusion').innerHTML = `
+    <p>Ключевые факторы каскадного распространения: <strong>beta</strong>, средняя степень узлов и наличие хабов в топологии сети.</p>
+    <p>По результатам моделирования порог эпидемии наступает при низком beta (около <strong>${D.summary.thresholdBeta['erdos-renyi'].toFixed(2)}</strong> для ER и <strong>${D.summary.thresholdBeta['scale-free'].toFixed(2)}</strong> для scale-free), что указывает на высокую уязвимость плотных сетей.</p>
+    <p class="ok">Таргетированная стратегия дала наибольший эффект: снижение Attack в scale-free сети на ${sfTarget.attackReductionPctVsBaseline.toFixed(2)}% (ER: ${erTarget.attackReductionPctVsBaseline.toFixed(2)}%).</p>
+    <p>Модель применима для реальных задач: оценка мер против эпидемий, планирование коммуникационных кампаний, анализ устойчивости сетевой инфраструктуры к каскадным процессам.</p>
+  `;
+}
+</script>
+</body>
+</html>
