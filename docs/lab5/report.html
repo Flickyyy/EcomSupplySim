@@ -41,6 +41,7 @@
   .card { padding: 14px 16px; margin: 12px 0; }
   .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .kpi { padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface2); }
   .kpi .v { font-size: 1.3rem; font-weight: 700; color: var(--accent2); }
   .kpi .l { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
@@ -51,10 +52,17 @@
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
   .chart-wrap { padding: 14px; }
   .chart-wrap canvas { max-height: 360px; }
+  .net-canvas { width: 100%; height: 320px; border: 1px solid var(--border); border-radius: 8px; background: #0d152c; }
+  .snapshot-canvas { width: 100%; height: 220px; border: 1px solid var(--border); border-radius: 8px; background: #0d152c; }
+  .small { font-size: .86rem; color: var(--muted); }
+  .state-chip { display: inline-block; padding: 2px 8px; border-radius: 999px; margin-right: 8px; font-size: .78rem; border: 1px solid var(--border); }
+  .state-s { color: #9ac8ff; }
+  .state-i { color: #f28482; }
+  .state-r { color: #84dcc6; }
   .formula { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #0d152c; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin: 10px 0; color: #bcd3ff; }
   .ok { color: var(--green); font-weight: 700; }
   @media (max-width: 840px) {
-    .grid-4, .grid-2 { grid-template-columns: 1fr; }
+    .grid-4, .grid-2, .grid-3 { grid-template-columns: 1fr; }
     h1 { font-size: 1.55rem; }
   }
 </style>
@@ -75,10 +83,11 @@
   <nav class="toc">
     <ol>
       <li><a href="#s1">Описание модели</a></li>
-      <li><a href="#s2">Результаты экспериментов</a></li>
-      <li><a href="#s3">Анализ устойчивости и пороги</a></li>
-      <li><a href="#s4">Стратегии и рекомендации</a></li>
-      <li><a href="#s5">Заключение</a></li>
+      <li><a href="#s2">Визуализация конфигураций сети</a></li>
+      <li><a href="#s3">Результаты экспериментов</a></li>
+      <li><a href="#s4">Анализ устойчивости и пороги</a></li>
+      <li><a href="#s5">Стратегии и рекомендации</a></li>
+      <li><a href="#s6">Заключение</a></li>
     </ol>
   </nav>
 
@@ -118,7 +127,57 @@
   </section>
 
   <section class="section" id="s2">
-    <h2>2. Результаты экспериментов</h2>
+    <h2>2. Визуализация конфигураций сети</h2>
+    <div class="card">
+      <p>Чтобы модель не была black box, ниже показаны <strong>примерные конфигурации сетей</strong> с теми же параметрами экспериментов: ER (p=0.02) и scale-free (m=2).</p>
+      <p class="small">Серым цветом отображены связи, цвет узла отражает состояние каскада в выбранный момент времени.</p>
+      <div style="margin-top:8px;">
+        <span class="state-chip state-s">S: восприимчивый</span>
+        <span class="state-chip state-i">I: зараженный</span>
+        <span class="state-chip state-r">R: выздоровевший</span>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="chart-wrap">
+        <h3>ER (p=0.02)</h3>
+        <canvas id="erCanvas" class="net-canvas"></canvas>
+        <p class="small" id="erStats"></p>
+      </div>
+      <div class="chart-wrap">
+        <h3>Scale-Free (m=2)</h3>
+        <canvas id="sfCanvas" class="net-canvas"></canvas>
+        <p class="small" id="sfStats"></p>
+      </div>
+    </div>
+
+    <div class="chart-wrap">
+      <h3>Распределение степеней узлов (degree distribution)</h3>
+      <canvas id="degreeDist"></canvas>
+    </div>
+
+    <div class="card">
+      <h3>Снимки каскада для baseline Scale-Free</h3>
+      <p class="small">Ниже показано как меняется состояние сети от старта до пика и конца процесса.</p>
+      <div class="grid-3" style="margin-top:10px;">
+        <div>
+          <p class="small">Старт: шаг <span id="snapStartStep">0</span></p>
+          <canvas id="snapStart" class="snapshot-canvas"></canvas>
+        </div>
+        <div>
+          <p class="small">Пик: шаг <span id="snapPeakStep">0</span></p>
+          <canvas id="snapPeak" class="snapshot-canvas"></canvas>
+        </div>
+        <div>
+          <p class="small">Финал: шаг <span id="snapEndStep">0</span></p>
+          <canvas id="snapEnd" class="snapshot-canvas"></canvas>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="s3">
+    <h2>3. Результаты экспериментов</h2>
     <p class="muted">Графики динамики S/I/R и зависимости масштаба вспышки от параметров сети и процесса.</p>
 
     <div class="grid-2">
@@ -129,10 +188,12 @@
       <div class="chart-wrap"><canvas id="attackByDensity"></canvas></div>
       <div class="chart-wrap"><canvas id="attackByInitial"></canvas></div>
     </div>
+
+    <div class="chart-wrap"><canvas id="scenarioCompare"></canvas></div>
   </section>
 
-  <section class="section" id="s3">
-    <h2>3. Анализ устойчивости сети и пороговые значения</h2>
+  <section class="section" id="s4">
+    <h2>4. Анализ устойчивости сети и пороговые значения</h2>
     <div class="card">
       <p>Порог определен как минимальное значение beta, при котором вероятность крупной вспышки (attack >= 20%) достигает 50%.</p>
       <table id="thresholdTable">
@@ -143,8 +204,8 @@
     <div class="chart-wrap"><canvas id="thresholdChart"></canvas></div>
   </section>
 
-  <section class="section" id="s4">
-    <h2>4. Рекомендации и эффективность стратегий</h2>
+  <section class="section" id="s5">
+    <h2>5. Рекомендации и эффективность стратегий</h2>
     <div class="card">
       <p>Проверены стратегии сдерживания: без вмешательства, случайная вакцинация 10% узлов, таргетированная вакцинация 10% хабов.</p>
       <table id="strategyTable">
@@ -160,8 +221,8 @@
     <div class="card" id="advice"></div>
   </section>
 
-  <section class="section" id="s5">
-    <h2>5. Заключение</h2>
+  <section class="section" id="s6">
+    <h2>6. Заключение</h2>
     <div class="card" id="conclusion"></div>
   </section>
 </div>
@@ -177,14 +238,217 @@ function render() {
   fillBaseTable();
   fillThresholdTable();
   fillStrategies();
+  renderNetworkVisuals();
   renderDynamics();
   renderAttackByBeta();
   renderAttackByDensity();
   renderAttackByInitial();
+  renderScenarioCompare();
   renderThreshold();
   renderStrategyChart();
   fillAdvice();
   fillConclusion();
+}
+
+function mkRng(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = (1664525 * s + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
+function genER(n, p, seed) {
+  const rnd = mkRng(seed);
+  const g = Array.from({length:n}, () => []);
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      if (rnd() < p) {
+        g[i].push(j);
+        g[j].push(i);
+      }
+    }
+  }
+  return g;
+}
+
+function genBA(n, m, seed) {
+  const rnd = mkRng(seed);
+  const g = Array.from({length:n}, () => []);
+  const m0 = Math.max(3, m + 1);
+  for (let i = 0; i < m0; i++) {
+    for (let j = i + 1; j < m0; j++) {
+      g[i].push(j);
+      g[j].push(i);
+    }
+  }
+  const pref = [];
+  for (let i = 0; i < m0; i++) {
+    for (let k = 0; k < g[i].length; k++) pref.push(i);
+  }
+  for (let v = m0; v < n; v++) {
+    const targets = new Set();
+    while (targets.size < m) {
+      targets.add(pref[Math.floor(rnd() * pref.length)]);
+    }
+    for (const t of targets) {
+      g[v].push(t);
+      g[t].push(v);
+      pref.push(v);
+      pref.push(t);
+    }
+  }
+  return g;
+}
+
+function deg(g) {
+  return g.map(a => a.length);
+}
+
+function layout(g, seed) {
+  const n = g.length;
+  const rnd = mkRng(seed);
+  const pos = Array.from({length:n}, () => ({x: 0.1 + 0.8*rnd(), y: 0.1 + 0.8*rnd()}));
+  const k = Math.sqrt(1 / n);
+  for (let it = 0; it < 90; it++) {
+    const disp = Array.from({length:n}, () => ({x:0, y:0}));
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        let dx = pos[i].x - pos[j].x;
+        let dy = pos[i].y - pos[j].y;
+        const dist = Math.hypot(dx, dy) + 0.001;
+        const rep = (k*k)/dist;
+        dx = dx / dist * rep;
+        dy = dy / dist * rep;
+        disp[i].x += dx; disp[i].y += dy;
+        disp[j].x -= dx; disp[j].y -= dy;
+      }
+    }
+    for (let i = 0; i < n; i++) {
+      for (const j of g[i]) {
+        if (j <= i) continue;
+        let dx = pos[i].x - pos[j].x;
+        let dy = pos[i].y - pos[j].y;
+        const dist = Math.hypot(dx, dy) + 0.001;
+        const att = (dist*dist)/k;
+        dx = dx / dist * att;
+        dy = dy / dist * att;
+        disp[i].x -= dx; disp[i].y -= dy;
+        disp[j].x += dx; disp[j].y += dy;
+      }
+    }
+    const t = 0.09 * (1 - it/100);
+    for (let i = 0; i < n; i++) {
+      pos[i].x = Math.min(0.98, Math.max(0.02, pos[i].x + disp[i].x * t));
+      pos[i].y = Math.min(0.98, Math.max(0.02, pos[i].y + disp[i].y * t));
+    }
+  }
+  return pos;
+}
+
+function makeState(g, sPct, iPct, rPct, seed) {
+  const n = g.length;
+  const degrees = deg(g).map((d, i) => ({i, d})).sort((a,b)=>b.d-a.d);
+  const state = Array.from({length:n}, () => 'S');
+  const nI = Math.max(0, Math.min(n, Math.round(n * iPct / 100)));
+  const nR = Math.max(0, Math.min(n-nI, Math.round(n * rPct / 100)));
+  for (let k = 0; k < nI; k++) state[degrees[k].i] = 'I';
+  for (let k = nI; k < nI + nR; k++) state[degrees[k].i] = 'R';
+  // Light shuffle to avoid too artificial ordering.
+  const rnd = mkRng(seed);
+  for (let i = n-1; i > 1; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    if (state[i] !== state[j]) {
+      const tmp = state[i];
+      state[i] = state[j];
+      state[j] = tmp;
+    }
+  }
+  return state;
+}
+
+function drawGraph(canvasId, g, pos, state) {
+  const c = document.getElementById(canvasId);
+  const ctx = c.getContext('2d');
+  const w = c.width = c.clientWidth;
+  const h = c.height = c.clientHeight;
+  ctx.clearRect(0, 0, w, h);
+
+  ctx.strokeStyle = 'rgba(146,166,206,0.23)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < g.length; i++) {
+    for (const j of g[i]) {
+      if (j <= i) continue;
+      ctx.beginPath();
+      ctx.moveTo(pos[i].x*w, pos[i].y*h);
+      ctx.lineTo(pos[j].x*w, pos[j].y*h);
+      ctx.stroke();
+    }
+  }
+
+  for (let i = 0; i < g.length; i++) {
+    const st = state[i];
+    ctx.fillStyle = st === 'I' ? '#f28482' : (st === 'R' ? '#84dcc6' : '#9ac8ff');
+    ctx.beginPath();
+    ctx.arc(pos[i].x*w, pos[i].y*h, 3.4, 0, Math.PI*2);
+    ctx.fill();
+  }
+}
+
+function avgDeg(g) {
+  return (g.reduce((a, x) => a + x.length, 0) / g.length).toFixed(2);
+}
+
+function renderNetworkVisuals() {
+  const n = 120;
+  const er = genER(n, 0.02, 20260320);
+  const sf = genBA(n, 2, 20260321);
+  const erPos = layout(er, 111);
+  const sfPos = layout(sf, 222);
+
+  const sfBase = D.dynamics.find(x => x.name.includes('Scale-free / baseline'));
+  const peakStep = Math.round(sfBase.peakStep);
+  const endStep = sfBase.series.length - 1;
+
+  const start = sfBase.series[0];
+  const peak = sfBase.series[Math.min(peakStep, sfBase.series.length - 1)];
+  const end = sfBase.series[endStep];
+
+  drawGraph('erCanvas', er, erPos, makeState(er, start.s, start.i, start.r, 31));
+  drawGraph('sfCanvas', sf, sfPos, makeState(sf, start.s, start.i, start.r, 41));
+  drawGraph('snapStart', sf, sfPos, makeState(sf, start.s, start.i, start.r, 51));
+  drawGraph('snapPeak', sf, sfPos, makeState(sf, peak.s, peak.i, peak.r, 61));
+  drawGraph('snapEnd', sf, sfPos, makeState(sf, end.s, end.i, end.r, 71));
+
+  document.getElementById('snapStartStep').textContent = '0';
+  document.getElementById('snapPeakStep').textContent = String(peakStep);
+  document.getElementById('snapEndStep').textContent = String(endStep);
+
+  document.getElementById('erStats').textContent = `N=${n}, avg degree=${avgDeg(er)}, визуализация параметров ER p=0.02`;
+  document.getElementById('sfStats').textContent = `N=${n}, avg degree=${avgDeg(sf)}, визуализация параметров scale-free m=2`;
+
+  const hist = (arr, maxBin) => {
+    const bins = Array.from({length:maxBin+1}, () => 0);
+    arr.forEach(v => bins[Math.min(maxBin, v)]++);
+    return bins;
+  };
+  const erDeg = deg(er);
+  const sfDeg = deg(sf);
+  const maxBin = 15;
+  new Chart(document.getElementById('degreeDist'), {
+    type: 'bar',
+    data: {
+      labels: Array.from({length:maxBin+1}, (_,i)=>String(i)),
+      datasets: [
+        { label: 'ER degree freq', data: hist(erDeg, maxBin), backgroundColor: 'rgba(246,189,96,0.75)' },
+        { label: 'Scale-free degree freq', data: hist(sfDeg, maxBin), backgroundColor: 'rgba(89,195,195,0.72)' }
+      ]
+    },
+    options: {
+      plugins: { title: { display: true, text: 'Проверка структуры: degree distribution (срез)' } },
+      scales: { x: { title: { display: true, text: 'Степень узла (bin, 15 = 15+)' } }, y: { title: { display: true, text: 'Число узлов' } } }
+    }
+  });
 }
 
 function findSweep(net, xName) {
@@ -303,6 +567,21 @@ function renderAttackByInitial() {
       ]
     },
     options: { plugins: { title: { display: true, text: 'Влияние начального числа зараженных на пик' } }, scales: { y: { title: { display: true, text: 'Peak I, %' } } } }
+  });
+}
+
+function renderScenarioCompare() {
+  const rows = D.dynamics;
+  new Chart(document.getElementById('scenarioCompare'), {
+    type: 'bar',
+    data: {
+      labels: rows.map(r => r.name),
+      datasets: [
+        { label: 'Attack %', data: rows.map(r => r.attackRatePct), backgroundColor: 'rgba(246,189,96,.75)' },
+        { label: 'Peak I %', data: rows.map(r => r.peakInfectedPct), backgroundColor: 'rgba(89,195,195,.75)' }
+      ]
+    },
+    options: { plugins: { title: { display: true, text: 'Сравнение сценариев каскада' } } }
   });
 }
 
